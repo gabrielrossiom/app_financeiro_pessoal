@@ -1,6 +1,8 @@
 # app_financeiro_pessoal
 
 Regras de negócios estabelecidas:
+
+
 📆 1. Estrutura do Mês Financeiro
 
     RN01: O mês financeiro do usuário inicia no dia 20 de cada mês.
