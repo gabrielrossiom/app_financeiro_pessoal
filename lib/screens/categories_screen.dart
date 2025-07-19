@@ -121,9 +121,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
     if (confirmed == true) {
       try {
-        // TODO: Implementar exclusão de categoria no provider
-        // final provider = context.read<FinanceProvider>();
-        // await provider.deleteCategory(category.id);
+        final provider = context.read<FinanceProvider>();
+        await provider.deleteCategory(category.id);
         await _loadCategories();
         
         if (mounted) {
@@ -146,78 +145,48 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Categorias'),
-        actions: [
-          IconButton(
-            onPressed: _showAddCategoryDialog,
-            icon: const Icon(Icons.add),
-          ),
-        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _loadCategories,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  // Categorias padrão
-                  _buildCategorySection(
-                    'Categorias Padrão',
-                    _categories.where((c) => !c.isCustom).toList(),
-                    canEdit: false,
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  // Categorias personalizadas
-                  _buildCategorySection(
-                    'Categorias Personalizadas',
-                    _categories.where((c) => c.isCustom).toList(),
-                    canEdit: true,
-                  ),
-                ],
-              ),
+              child: _categories.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.category, size: 64, color: Colors.grey[400]),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Nenhuma categoria encontrada',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Toque no + para adicionar uma categoria',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80), // Padding inferior para o FAB
+                      itemCount: _categories.length,
+                      itemBuilder: (context, index) {
+                        return _buildCategoryCard(_categories[index], true);
+                      },
+                    ),
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddCategoryDialog,
         child: const Icon(Icons.add),
       ),
-    );
-  }
-
-  Widget _buildCategorySection(String title, List<models.Category> categories, {required bool canEdit}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-        if (categories.isEmpty)
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                children: [
-                  Icon(Icons.category, size: 64, color: Colors.grey[400]),
-                  const SizedBox(height: 16),
-                  Text(
-                    canEdit ? 'Nenhuma categoria personalizada' : 'Carregando categorias padrão...',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          )
-        else
-          ...categories.map((category) => _buildCategoryCard(category, canEdit)),
-      ],
     );
   }
 
@@ -236,23 +205,12 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           category.name,
           style: const TextStyle(fontWeight: FontWeight.w500),
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (category.monthlyBudget != null && category.monthlyBudget! > 0)
-              Text(
+        subtitle: category.monthlyBudget != null
+            ? Text(
                 'Orçamento: ${Formatters.formatCurrency(category.monthlyBudget!)}',
                 style: TextStyle(color: Colors.grey[600]),
-              ),
-            Text(
-              category.isActive ? 'Ativa' : 'Inativa',
-              style: TextStyle(
-                color: category.isActive ? Colors.green : Colors.red,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
+              )
+            : null,
         trailing: canEdit
             ? PopupMenuButton<String>(
                 onSelected: (value) {
@@ -270,7 +228,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                     value: 'edit',
                     child: Row(
                       children: [
-                        Icon(Icons.edit),
+                        Icon(Icons.edit, size: 18),
                         SizedBox(width: 8),
                         Text('Editar'),
                       ],
@@ -280,7 +238,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                     value: 'delete',
                     child: Row(
                       children: [
-                        Icon(Icons.delete, color: Colors.red),
+                        Icon(Icons.delete, size: 18, color: Colors.red),
                         SizedBox(width: 8),
                         Text('Excluir', style: TextStyle(color: Colors.red)),
                       ],
@@ -319,6 +277,13 @@ class _CategoryDialogState extends State<_CategoryDialog> {
   final List<String> _availableIcons = [
     '📁', '🏠', '🍽️', '🚗', '📚', '🎮', '🏥', '👕', '🔧', '💰', '🎁', '🏢',
     '🍕', '☕', '🎬', '✈️', '🏖️', '🎵', '📱', '💻', '🎨', '🏃', '🧘', '📖',
+    '🛒', '💊', '🎓', '🏦', '💳', '📊', '🎯', '⭐', '🔥', '💡', '🔑', '🎪',
+    '🏈', '⚽', '🎾', '🏀', '🏓', '🎸', '🎹', '🎤', '🎭', '🎨', '📷', '🎥',
+    '🌍', '🌙', '☀️', '🌈', '🌸', '🌺', '🌻', '🌹', '🍀', '🌴', '🌳', '🌵',
+    '🍎', '🍌', '🍇', '🍓', '🍊', '🍋', '🥑', '🥕', '🥬', '🥩', '🍗', '🐟',
+    '🥛', '🧀', '🍞', '🥐', '🍰', '🍪', '🍦', '🍺', '🍷', '🥤', '🧃', '☕',
+    '🚌', '🚲', '🛵', '🚁', '🚢', '🚅', '🚇', '🚀', '🎠', '🎡', '🎢', '🎪',
+    '🏛️', '🏰', '🏯', '🗼', '🗽', '⛪', '🕌', '🕍', '⛩️', '🕋', '⛺', '🏕️',
   ];
 
   @override
@@ -360,140 +325,214 @@ class _CategoryDialogState extends State<_CategoryDialog> {
     widget.onSave(category);
   }
 
+  void _showColorPicker() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(
+          'Escolher cor',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        content: SingleChildScrollView(
+          child: ColorPicker(
+            pickerColor: _selectedColor,
+            onColorChanged: (color) => setState(() => _selectedColor = color),
+            pickerAreaHeightPercent: 0.8,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showIconPicker() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(
+          'Escolher ícone',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 350,
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 8,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+            ),
+            itemCount: _availableIcons.length,
+            itemBuilder: (context, index) {
+              final icon = _availableIcons[index];
+              final isSelected = icon == _selectedIcon;
+              return GestureDetector(
+                onTap: () {
+                  setState(() => _selectedIcon = icon);
+                  Navigator.of(context).pop();
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isSelected ? Colors.blue.withOpacity(0.2) : Colors.grey.shade50,
+                    border: Border.all(
+                      color: isSelected ? Colors.blue : Colors.grey.shade300,
+                      width: isSelected ? 2 : 1,
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(
+                    child: Text(
+                      icon,
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.category != null;
     
     return AlertDialog(
-      title: Text(isEditing ? 'Editar Categoria' : 'Nova Categoria'),
+      title: Text(
+        isEditing ? 'Editar Categoria' : 'Nova Categoria',
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+      ),
       content: Form(
         key: _formKey,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Nome
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(
                   labelText: 'Nome da categoria',
-                  prefixIcon: Icon(Icons.label),
+                  prefixIcon: Icon(Icons.label, size: 20),
+                  border: OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Digite um nome para a categoria';
+                    return 'Nome é obrigatório';
                   }
                   return null;
                 },
               ),
               const SizedBox(height: 16),
-
-              // Ícone
-              const Text('Ícone', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Container(
-                height: 120,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: GridView.builder(
-                  padding: const EdgeInsets.all(8),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 6,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
-                  ),
-                  itemCount: _availableIcons.length,
-                  itemBuilder: (context, index) {
-                    final icon = _availableIcons[index];
-                    final isSelected = icon == _selectedIcon;
-                    
-                    return GestureDetector(
-                      onTap: () => setState(() => _selectedIcon = icon),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: isSelected ? _selectedColor.withOpacity(0.2) : null,
-                          border: isSelected ? Border.all(color: _selectedColor, width: 2) : null,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Center(
-                          child: Text(
-                            icon,
-                            style: const TextStyle(fontSize: 24),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Cor
-              const Text('Cor', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('Escolher cor'),
-                      content: SingleChildScrollView(
-                        child: ColorPicker(
-                          pickerColor: _selectedColor,
-                          onColorChanged: (color) => setState(() => _selectedColor = color),
-                          pickerAreaHeightPercent: 0.8,
-                        ),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('OK'),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-                child: Container(
-                  width: double.infinity,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: _selectedColor,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey),
-                  ),
-                  child: const Center(
-                    child: Text(
-                      'Toque para escolher a cor',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
+              
               // Orçamento mensal
               TextFormField(
                 controller: _budgetController,
+                keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                  labelText: 'Orçamento mensal (opcional)',
-                  prefixIcon: Icon(Icons.account_balance_wallet),
-                  prefixText: 'R\$ ',
+                  labelText: 'Orçamento mensal *',
+                  prefixIcon: Icon(Icons.account_balance_wallet, size: 20),
+                  border: OutlineInputBorder(),
                 ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 4, left: 12),
+                child: Text(
+                  '* Opcional',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
               ),
               const SizedBox(height: 16),
-
-              // Status ativo
-              CheckboxListTile(
-                title: const Text('Categoria ativa'),
-                value: _isActive,
-                onChanged: (value) => setState(() => _isActive = value ?? true),
-                controlAffinity: ListTileControlAffinity.leading,
+              
+              // Cor
+              const Text('Cor da categoria', style: TextStyle(fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              Container(
+                height: 48, // Mesmo tamanho do TextFormField
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: InkWell(
+                  onTap: _showColorPicker,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        margin: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: _selectedColor,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text('Toque para escolher a cor'),
+                      const Spacer(),
+                      const Icon(Icons.color_lens, size: 20),
+                      const SizedBox(width: 12),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              // Ícone
+              const Text('Ícone da categoria', style: TextStyle(fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              Container(
+                height: 48, // Mesmo tamanho do TextFormField
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: InkWell(
+                  onTap: _showIconPicker,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        margin: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Center(
+                          child: Text(
+                            _selectedIcon,
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text('Toque para escolher o ícone'),
+                      const Spacer(),
+                      const Icon(Icons.emoji_emotions, size: 20),
+                      const SizedBox(width: 12),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
@@ -506,7 +545,7 @@ class _CategoryDialogState extends State<_CategoryDialog> {
         ),
         ElevatedButton(
           onPressed: _saveCategory,
-          child: Text(isEditing ? 'Salvar' : 'Adicionar'),
+          child: Text(isEditing ? 'Salvar' : 'Criar'),
         ),
       ],
     );

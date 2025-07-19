@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/models.dart' as models;
 import '../utils/utils.dart';
+import 'package:go_router/go_router.dart';
 
 class RecentTransactionsCard extends StatelessWidget {
   final List<models.Transaction> transactions;
@@ -31,7 +32,7 @@ class RecentTransactionsCard extends StatelessWidget {
                 ),
                 TextButton(
                   onPressed: () {
-                    Navigator.pushNamed(context, '/transactions');
+                    context.go('/transactions');
                   },
                   child: const Text('Ver Todas'),
                 ),

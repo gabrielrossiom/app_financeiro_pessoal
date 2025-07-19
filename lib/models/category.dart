@@ -7,7 +7,6 @@ class Category {
   final String color;
   final double? monthlyBudget;
   final bool isActive;
-  final bool isCustom;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -18,7 +17,6 @@ class Category {
     required this.color,
     this.monthlyBudget,
     this.isActive = true,
-    this.isCustom = false,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) : 
@@ -103,7 +101,6 @@ class Category {
     String? color,
     double? monthlyBudget,
     bool? isActive,
-    bool? isCustom,
   }) {
     return Category(
       id: id,
@@ -112,7 +109,6 @@ class Category {
       color: color ?? this.color,
       monthlyBudget: monthlyBudget ?? this.monthlyBudget,
       isActive: isActive ?? this.isActive,
-      isCustom: isCustom ?? this.isCustom,
       createdAt: createdAt,
       updatedAt: DateTime.now(),
     );
@@ -127,7 +123,6 @@ class Category {
       'color': color,
       'monthlyBudget': monthlyBudget,
       'isActive': isActive ? 1 : 0,
-      'isCustom': isCustom ? 1 : 0,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'updatedAt': updatedAt.millisecondsSinceEpoch,
     };
@@ -142,7 +137,6 @@ class Category {
       color: map['color'],
       monthlyBudget: map['monthlyBudget'],
       isActive: map['isActive'] == 1,
-      isCustom: map['isCustom'] == 1,
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt']),
       updatedAt: DateTime.fromMillisecondsSinceEpoch(map['updatedAt']),
     );

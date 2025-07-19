@@ -27,7 +27,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadReportData();
+    // Carregar dados após o build inicial
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadReportData();
+    });
   }
 
   Future<void> _loadReportData() async {

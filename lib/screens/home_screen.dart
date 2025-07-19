@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../providers/providers.dart';
 import '../utils/utils.dart';
 import '../models/models.dart' as models;
@@ -242,7 +243,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () {
-                      Navigator.pushNamed(context, '/add-transaction');
+                      context.go('/add-transaction');
                     },
                     icon: const Icon(Icons.add),
                     label: const Text('Nova Transação'),
@@ -252,7 +253,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () {
-                      Navigator.pushNamed(context, '/categories');
+                      context.go('/categories');
                     },
                     icon: const Icon(Icons.category),
                     label: const Text('Categorias'),
@@ -266,7 +267,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () {
-                      Navigator.pushNamed(context, '/reports');
+                      context.go('/reports');
                     },
                     icon: const Icon(Icons.bar_chart),
                     label: const Text('Relatórios'),
@@ -276,7 +277,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () {
-                      Navigator.pushNamed(context, '/settings');
+                      context.go('/settings');
                     },
                     icon: const Icon(Icons.settings),
                     label: const Text('Configurações'),

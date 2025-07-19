@@ -182,7 +182,6 @@ class _ScaffoldWithNavigationBarState extends State<ScaffoldWithNavigationBar> {
           setState(() {
             _currentIndex = index;
           });
-          
           switch (index) {
             case 0:
               context.go('/');
@@ -194,6 +193,9 @@ class _ScaffoldWithNavigationBarState extends State<ScaffoldWithNavigationBar> {
               context.go('/reports');
               break;
             case 3:
+              context.go('/categories');
+              break;
+            case 4:
               context.go('/settings');
               break;
           }
@@ -213,6 +215,11 @@ class _ScaffoldWithNavigationBarState extends State<ScaffoldWithNavigationBar> {
             icon: Icon(Icons.bar_chart_outlined),
             selectedIcon: Icon(Icons.bar_chart),
             label: 'Relatórios',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.category_outlined),
+            selectedIcon: Icon(Icons.category),
+            label: 'Categorias',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),

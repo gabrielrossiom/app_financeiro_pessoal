@@ -26,7 +26,6 @@ class DatabaseService {
       path,
       version: _databaseVersion,
       onCreate: _onCreate,
-      onUpgrade: _onUpgrade,
     );
   }
 
@@ -40,7 +39,6 @@ class DatabaseService {
         color TEXT NOT NULL,
         monthlyBudget REAL,
         isActive INTEGER NOT NULL DEFAULT 1,
-        isCustom INTEGER NOT NULL DEFAULT 0,
         createdAt INTEGER NOT NULL,
         updatedAt INTEGER NOT NULL
       )
@@ -102,10 +100,6 @@ class DatabaseService {
 
     // Inserir categorias padrão
     await _insertDefaultCategories(db);
-  }
-
-  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Implementar migrações futuras aqui
   }
 
   Future<void> _insertDefaultCategories(Database db) async {

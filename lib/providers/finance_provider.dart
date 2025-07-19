@@ -162,6 +162,20 @@ class FinanceProvider with ChangeNotifier {
     }
   }
 
+  // Excluir categoria
+  Future<void> deleteCategory(String id) async {
+    _setLoading(true);
+    try {
+      await _databaseService.deleteCategory(id);
+      await _loadCategories();
+      _error = null;
+    } catch (e) {
+      _error = 'Erro ao excluir categoria: $e';
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   // Adicionar cartão de crédito
   Future<void> addCreditCard(models.CreditCard creditCard) async {
     _setLoading(true);
