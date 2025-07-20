@@ -314,10 +314,12 @@ class DatabaseService {
   Future<Map<String, double>> getExpensesByCategory(DateTime startDate, DateTime endDate) async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.rawQuery('''
-      SELECT category, SUM(amount) as total
-      FROM transactions
-      WHERE type = ? AND date >= ? AND date <= ?
-      GROUP BY category
+      SELECT c.name as category_name, SUM(t.amount) as total
+      FROM transactions t
+      INNER JOIN categories c ON t.category = c.id
+      WHERE t.type = ? AND t.date >= ? AND t.date <= ?
+      GROUP BY c.id, c.name
+      ORDER BY total DESC
     ''', [
       models.TransactionType.expense.index,
       startDate.millisecondsSinceEpoch,
@@ -326,7 +328,7 @@ class DatabaseService {
 
     final Map<String, double> result = {};
     for (final map in maps) {
-      result[map['category']] = map['total'];
+      result[map['category_name']] = map['total'];
     }
     return result;
   }

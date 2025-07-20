@@ -66,9 +66,21 @@ class FinanceProvider with ChangeNotifier {
 
   // Carregar transações
   Future<void> _loadTransactions() async {
-    if (_currentFinancialMonth != null) {
-      final transactions = await _databaseService.getTransactionsByFinancialMonth(_currentFinancialMonth!);
+    try {
+      // Carregar todas as transações do mês atual
+      final now = DateTime.now();
+      final startOfMonth = DateTime(now.year, now.month, 1);
+      final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+      
+      final transactions = await _databaseService.getTransactions(
+        startDate: startOfMonth,
+        endDate: endOfMonth,
+      );
+      
       _transactions = transactions;
+      notifyListeners();
+    } catch (e) {
+      _error = 'Erro ao carregar transações: $e';
       notifyListeners();
     }
   }
@@ -94,11 +106,17 @@ class FinanceProvider with ChangeNotifier {
         }
       }
       
+      // Recarregar transações e atualizar totais do mês financeiro
       await _loadTransactions();
       await _updateFinancialMonthTotals();
+      
+      // Recarregar o mês financeiro do banco para garantir dados atualizados
+      await _loadCurrentFinancialMonth();
+      
       _error = null;
     } catch (e) {
       _error = 'Erro ao adicionar transação: $e';
+      rethrow; // Re-throw para que a UI possa mostrar o erro
     } finally {
       _setLoading(false);
     }
@@ -111,6 +129,7 @@ class FinanceProvider with ChangeNotifier {
       await _databaseService.updateTransaction(transaction);
       await _loadTransactions();
       await _updateFinancialMonthTotals();
+      await _loadCurrentFinancialMonth();
       _error = null;
     } catch (e) {
       _error = 'Erro ao atualizar transação: $e';
@@ -126,6 +145,7 @@ class FinanceProvider with ChangeNotifier {
       await _databaseService.deleteTransaction(id);
       await _loadTransactions();
       await _updateFinancialMonthTotals();
+      await _loadCurrentFinancialMonth();
       _error = null;
     } catch (e) {
       _error = 'Erro ao excluir transação: $e';
@@ -229,6 +249,7 @@ class FinanceProvider with ChangeNotifier {
     if (_currentFinancialMonth == null) return;
 
     try {
+      // Calcular totais baseados nas transações do período
       final totalIncome = await _databaseService.getTotalIncome(
         _currentFinancialMonth!.startDate,
         _currentFinancialMonth!.endDate,
@@ -239,16 +260,23 @@ class FinanceProvider with ChangeNotifier {
         _currentFinancialMonth!.endDate,
       );
 
+      // Atualizar o mês financeiro com os novos totais
       final updatedMonth = _currentFinancialMonth!.updateTotals(
         totalIncome: totalIncome,
         totalExpenses: totalExpenses,
       );
 
+      // Salvar no banco de dados
       await _databaseService.updateFinancialMonth(updatedMonth);
-      _currentFinancialMonth = updatedMonth;
+      
+      // Recarregar o mês financeiro do banco para garantir dados atualizados
+      _currentFinancialMonth = await _databaseService.getFinancialMonthByDate(updatedMonth.startDate);
+      
+      // Notificar os listeners para atualizar a UI
       notifyListeners();
     } catch (e) {
       _error = 'Erro ao atualizar totais: $e';
+      notifyListeners();
     }
   }
 

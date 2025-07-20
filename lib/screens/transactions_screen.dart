@@ -262,11 +262,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                             child: ListTile(
                               leading: CircleAvatar(
                                 backgroundColor: Color(int.parse(category.color.replaceAll('#', '0xFF'))),
-                                child: Icon(
-                                  transaction.type == models.TransactionType.income
-                                      ? Icons.trending_up
-                                      : Icons.trending_down,
-                                  color: Colors.white,
+                                child: Text(
+                                  category.icon,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                               title: Text(

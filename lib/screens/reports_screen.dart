@@ -23,6 +23,17 @@ class _ReportsScreenState extends State<ReportsScreen> {
   double _totalIncome = 0;
   double _totalExpenses = 0;
   double _balance = 0;
+  
+  // Filtros
+  models.TransactionType? _selectedType;
+  String? _selectedCategory;
+  models.PaymentMethod? _selectedPaymentMethod;
+  
+  // Estatísticas adicionais
+  int _totalTransactions = 0;
+  double _averageTransactionValue = 0;
+  String _mostExpensiveCategory = '';
+  double _mostExpensiveCategoryValue = 0;
 
   @override
   void initState() {
@@ -52,8 +63,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
         // Obter gastos por categoria
         _expensesByCategory = await provider.getExpensesByCategory();
         
-        // Obter transações do mês
-        _monthlyTransactions = await provider.getFilteredTransactions();
+        // Obter transações do mês com filtros
+        _monthlyTransactions = await provider.getFilteredTransactions(
+          type: _selectedType,
+          category: _selectedCategory,
+          paymentMethod: _selectedPaymentMethod,
+        );
+        
+        // Calcular estatísticas adicionais
+        _calculateStatistics();
       }
       
       setState(() => _isLoading = false);
@@ -64,6 +82,32 @@ class _ReportsScreenState extends State<ReportsScreen> {
           SnackBar(content: Text('Erro ao carregar relatórios: $e')),
         );
       }
+    }
+  }
+
+  void _calculateStatistics() {
+    if (_monthlyTransactions.isEmpty) {
+      _totalTransactions = 0;
+      _averageTransactionValue = 0;
+      _mostExpensiveCategory = '';
+      _mostExpensiveCategoryValue = 0;
+      return;
+    }
+
+    _totalTransactions = _monthlyTransactions.length;
+    
+    // Calcular valor médio das transações
+    final totalValue = _monthlyTransactions.fold<double>(
+      0, (sum, transaction) => sum + transaction.amount);
+    _averageTransactionValue = totalValue / _totalTransactions;
+    
+    // Encontrar categoria mais cara
+    if (_expensesByCategory.isNotEmpty) {
+      final sortedCategories = _expensesByCategory.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      
+      _mostExpensiveCategory = sortedCategories.first.key;
+      _mostExpensiveCategoryValue = sortedCategories.first.value;
     }
   }
 
@@ -82,17 +126,23 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
+  void _selectPreviousMonth() {
+    final DateTime previousMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
+    setState(() => _selectedMonth = previousMonth);
+    _loadReportData();
+  }
+
+  void _selectNextMonth() {
+    final DateTime nextMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1);
+    setState(() => _selectedMonth = nextMonth);
+    _loadReportData();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Relatórios'),
-        actions: [
-          IconButton(
-            onPressed: _selectMonth,
-            icon: const Icon(Icons.calendar_today),
-          ),
-        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -101,12 +151,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  // Cabeçalho do mês
-                  _buildMonthHeader(),
+                  // Seletor de período
+                  _buildPeriodSelector(),
                   const SizedBox(height: 24),
                   
                   // Resumo financeiro
                   _buildFinancialSummary(),
+                  const SizedBox(height: 24),
+                  
+                  // Estatísticas adicionais
+                  _buildStatistics(),
                   const SizedBox(height: 24),
                   
                   // Gráfico de gastos por categoria
@@ -115,54 +169,61 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     const SizedBox(height: 24),
                   ],
                   
-                  // Lista de categorias com valores
-                  if (_expensesByCategory.isNotEmpty) ...[
-                    _buildCategoryBreakdown(),
-                    const SizedBox(height: 24),
-                  ],
-                  
-                  // Transações do mês
-                  _buildMonthlyTransactions(),
+                  // Lista de transações
+                  _buildTransactionsList(),
                 ],
               ),
             ),
     );
   }
 
-  Widget _buildMonthHeader() {
-    final monthName = DateFormat('MMMM yyyy', 'pt_BR').format(_selectedMonth);
+  Widget _buildPeriodSelector() {
+    final provider = context.read<FinanceProvider>();
+    final currentMonth = provider.currentFinancialMonth;
+    
+    if (currentMonth == null) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Center(child: Text('Nenhum mês financeiro encontrado')),
+        ),
+      );
+    }
     
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.analytics, size: 32, color: Colors.blue),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Relatório de $monthName',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    'Mês Financeiro',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
+            Text(
+              'Período do Relatório',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
               ),
             ),
-            IconButton(
-              onPressed: _selectMonth,
-              icon: const Icon(Icons.edit_calendar),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back_ios, size: 16),
+                  onPressed: () => _selectPreviousMonth(),
+                ),
+                Expanded(
+                  child: Text(
+                    '${DateFormat('dd/MM/yyyy').format(currentMonth.startDate)} a ${DateFormat('dd/MM/yyyy').format(currentMonth.endDate)}',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onPressed: () => _selectNextMonth(),
+                ),
+              ],
             ),
           ],
         ),
@@ -522,6 +583,148 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
+  Widget _buildTransactionsList() {
+    if (_monthlyTransactions.isEmpty) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Center(
+            child: Text('Nenhuma transação encontrada para este período'),
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Transações do Período',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _monthlyTransactions.length,
+              itemBuilder: (context, index) {
+                final transaction = _monthlyTransactions[index];
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: transaction.type == models.TransactionType.income 
+                        ? Colors.green 
+                        : Colors.red,
+                    child: Icon(
+                      transaction.type == models.TransactionType.income 
+                          ? Icons.arrow_upward 
+                          : Icons.arrow_downward,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                  ),
+                  title: Text(transaction.description),
+                  subtitle: Text(
+                    '${_getCategoryName(transaction.category)} • ${DateFormat('dd/MM/yyyy').format(transaction.date)}',
+                  ),
+                  trailing: Text(
+                    Formatters.formatCurrency(transaction.amount),
+                    style: TextStyle(
+                      color: transaction.type == models.TransactionType.income 
+                          ? Colors.green 
+                          : Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilters() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Filtros',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Adicione aqui os filtros para tipo, categoria e método de pagamento
+            // Por exemplo:
+            // _buildFilterDropdown('Tipo', _selectedType, (value) => setState(() => _selectedType = value)),
+            // _buildFilterDropdown('Categoria', _selectedCategory, (value) => setState(() => _selectedCategory = value)),
+            // _buildFilterDropdown('Método de Pagamento', _selectedPaymentMethod, (value) => setState(() => _selectedPaymentMethod = value)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatistics() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Estatísticas Adicionais',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildStatisticItem('Total de Transações', _totalTransactions.toString()),
+            _buildStatisticItem('Valor Médio das Transações', Formatters.formatCurrency(_averageTransactionValue)),
+            _buildStatisticItem('Categoria Mais Cara', _mostExpensiveCategory),
+            _buildStatisticItem('Valor da Categoria Mais Cara', Formatters.formatCurrency(_mostExpensiveCategoryValue)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatisticItem(String title, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[600],
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Color _getCategoryColor(String categoryName) {
     // Cores padrão para categorias
     final colors = [
@@ -540,5 +743,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
     // Gerar cor baseada no nome da categoria
     int hash = categoryName.hashCode;
     return colors[hash.abs() % colors.length];
+  }
+
+  String _getCategoryName(String categoryId) {
+    try {
+      final provider = context.read<FinanceProvider>();
+      final category = provider.categories.firstWhere((c) => c.id == categoryId);
+      return category.name;
+    } catch (e) {
+      return 'Categoria não encontrada';
+    }
   }
 } 

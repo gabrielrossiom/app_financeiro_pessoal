@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../providers/providers.dart';
 import '../models/models.dart' as models;
 import '../utils/utils.dart';
+import 'package:go_router/go_router.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   const AddTransactionScreen({super.key});
@@ -23,8 +24,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String? _selectedCategory;
   DateTime _selectedDate = DateTime.now();
   int _installments = 1;
-  bool _isRefundable = false;
-  double? _refundAmount;
 
   List<models.Category> _categories = [];
 
@@ -42,14 +41,22 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   Future<void> _loadCategories() async {
-    final provider = context.read<FinanceProvider>();
-    final categories = await provider.getCategories();
-    setState(() {
-      _categories = categories;
-      if (_categories.isNotEmpty && _selectedCategory == null) {
-        _selectedCategory = _categories.first.id;
+    try {
+      final provider = context.read<FinanceProvider>();
+      final categories = await provider.getCategories();
+      setState(() {
+        _categories = categories;
+        if (_categories.isNotEmpty && _selectedCategory == null) {
+          _selectedCategory = _categories.first.id;
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar categorias: $e')),
+        );
       }
-    });
+    }
   }
 
   Future<void> _selectDate() async {
@@ -89,8 +96,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         date: _selectedDate,
         recurrenceType: _selectedRecurrence,
         installments: _installments > 1 ? _installments : null,
-        isRefundable: _isRefundable,
-        refundAmount: _refundAmount,
       );
 
       await provider.addTransaction(transaction);
@@ -99,12 +104,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Transação adicionada com sucesso!')),
         );
-        Navigator.of(context).pop();
+        // Navegar para a listagem de transações
+        context.go('/transactions');
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao salvar: $e')),
+          SnackBar(content: Text('Erro ao salvar transação: $e')),
         );
       }
     }
@@ -115,12 +121,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Nova Transação'),
-        actions: [
-          TextButton(
-            onPressed: _saveTransaction,
-            child: const Text('Salvar'),
-          ),
-        ],
       ),
       body: Form(
         key: _formKey,
@@ -181,7 +181,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               controller: _descriptionController,
               decoration: const InputDecoration(
                 labelText: 'Descrição',
-                prefixIcon: Icon(Icons.description),
+                prefixIcon: Icon(Icons.description, size: 20),
+                border: OutlineInputBorder(),
               ),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
@@ -197,8 +198,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               controller: _amountController,
               decoration: const InputDecoration(
                 labelText: 'Valor',
-                prefixIcon: Icon(Icons.attach_money),
+                prefixIcon: Icon(Icons.attach_money, size: 20),
                 prefixText: 'R\$ ',
+                border: OutlineInputBorder(),
               ),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               validator: (value) {
@@ -215,131 +217,102 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             const SizedBox(height: 16),
 
             // Categoria
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Categoria',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: _selectedCategory,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
-                      items: _categories.map((category) {
-                        return DropdownMenuItem(
-                          value: category.id,
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 16,
-                                height: 16,
-                                decoration: BoxDecoration(
-                                  color: Color(int.parse(category.color.replaceAll('#', '0xFF'))),
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(category.name),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedCategory = value;
-                        });
-                      },
-                    ),
-                  ],
+            const Text('Categoria', style: TextStyle(fontWeight: FontWeight.w500)),
+            const SizedBox(height: 8),
+            Container(
+              height: 48,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: DropdownButtonFormField<String>(
+                value: _selectedCategory,
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
+                items: _categories.map((category) {
+                  return DropdownMenuItem(
+                    value: category.id,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 16,
+                          height: 16,
+                          decoration: BoxDecoration(
+                            color: Color(int.parse(category.color.replaceAll('#', '0xFF'))),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(category.name),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedCategory = value;
+                  });
+                },
               ),
             ),
             const SizedBox(height: 16),
 
             // Método de pagamento
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Método de Pagamento',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<models.PaymentMethod>(
-                      value: _selectedPaymentMethod,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
-                      items: models.PaymentMethod.values.map((method) {
-                        return DropdownMenuItem(
-                          value: method,
-                          child: Text(method.displayName),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedPaymentMethod = value!;
-                        });
-                      },
-                    ),
-                  ],
+            const Text('Método de Pagamento', style: TextStyle(fontWeight: FontWeight.w500)),
+            const SizedBox(height: 8),
+            Container(
+              height: 48,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: DropdownButtonFormField<models.PaymentMethod>(
+                value: _selectedPaymentMethod,
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
+                items: models.PaymentMethod.values.map((method) {
+                  return DropdownMenuItem(
+                    value: method,
+                    child: Text(method.displayName),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedPaymentMethod = value!;
+                  });
+                },
               ),
             ),
             const SizedBox(height: 16),
 
             // Data
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            const Text('Data', style: TextStyle(fontWeight: FontWeight.w500)),
+            const SizedBox(height: 8),
+            Container(
+              height: 48,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: InkWell(
+                onTap: _selectDate,
+                borderRadius: BorderRadius.circular(8),
+                child: Row(
                   children: [
-                    const Text(
-                      'Data',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    const SizedBox(width: 12),
+                    const Icon(Icons.calendar_today, size: 20),
+                    const SizedBox(width: 12),
+                    Text(
+                      DateFormat('dd/MM/yyyy').format(_selectedDate),
+                      style: const TextStyle(fontSize: 16),
                     ),
-                    const SizedBox(height: 12),
-                    InkWell(
-                      onTap: _selectDate,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.calendar_today),
-                            const SizedBox(width: 8),
-                            Text(
-                              DateFormat('dd/MM/yyyy').format(_selectedDate),
-                              style: const TextStyle(fontSize: 16),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                    const Spacer(),
+                    const Icon(Icons.arrow_drop_down, size: 20),
+                    const SizedBox(width: 12),
                   ],
                 ),
               ),
@@ -347,128 +320,54 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             const SizedBox(height: 16),
 
             // Recorrência
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Recorrência',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<models.RecurrenceType>(
-                      value: _selectedRecurrence,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
-                      items: models.RecurrenceType.values.map((recurrence) {
-                        return DropdownMenuItem(
-                          value: recurrence,
-                          child: Text(recurrence.displayName),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedRecurrence = value!;
-                        });
-                      },
-                    ),
-                  ],
+            const Text('Recorrência', style: TextStyle(fontWeight: FontWeight.w500)),
+            const SizedBox(height: 8),
+            Container(
+              height: 48,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: DropdownButtonFormField<models.RecurrenceType>(
+                value: _selectedRecurrence,
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
+                items: models.RecurrenceType.values.map((recurrence) {
+                  return DropdownMenuItem(
+                    value: recurrence,
+                    child: Text(recurrence.displayName),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedRecurrence = value!;
+                  });
+                },
               ),
             ),
             const SizedBox(height: 16),
 
             // Parcelas (apenas se for cartão de crédito)
             if (_selectedPaymentMethod == models.PaymentMethod.creditCard) ...[
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Parcelas',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              initialValue: '1',
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                border: OutlineInputBorder(),
-                                labelText: 'Número de parcelas',
-                              ),
-                              onChanged: (value) {
-                                _installments = int.tryParse(value) ?? 1;
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+              const Text('Parcelas', style: TextStyle(fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              TextFormField(
+                initialValue: '1',
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Número de parcelas',
+                  prefixIcon: Icon(Icons.credit_card, size: 20),
+                  border: OutlineInputBorder(),
                 ),
+                onChanged: (value) {
+                  _installments = int.tryParse(value) ?? 1;
+                },
               ),
               const SizedBox(height: 16),
             ],
 
-            // Opções adicionais
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Opções Adicionais',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    CheckboxListTile(
-                      title: const Text('Reembolsável'),
-                      value: _isRefundable,
-                      onChanged: (value) {
-                        setState(() {
-                          _isRefundable = value ?? false;
-                          if (!_isRefundable) {
-                            _refundAmount = null;
-                          }
-                        });
-                      },
-                    ),
-                    if (_isRefundable) ...[
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        decoration: const InputDecoration(
-                          labelText: 'Valor do reembolso',
-                          prefixText: 'R\$ ',
-                        ),
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        onChanged: (value) {
-                          _refundAmount = double.tryParse(value.replaceAll(',', '.'));
-                        },
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
             const SizedBox(height: 32),
 
             // Botão salvar

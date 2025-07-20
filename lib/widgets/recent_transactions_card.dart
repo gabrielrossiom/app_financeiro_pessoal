@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../models/models.dart' as models;
 import '../utils/utils.dart';
-import 'package:go_router/go_router.dart';
+import '../providers/providers.dart';
 
 class RecentTransactionsCard extends StatelessWidget {
   final List<models.Transaction> transactions;
@@ -13,7 +15,21 @@ class RecentTransactionsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    if (transactions.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Center(
+            child: Text(
+              'Nenhuma transação recente',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Colors.grey[600],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Card(
       child: Padding(
@@ -22,52 +38,33 @@ class RecentTransactionsCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   'Transações Recentes',
-                  style: theme.textTheme.titleMedium?.copyWith(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+                const Spacer(),
                 TextButton(
                   onPressed: () {
+                    // Navegar para a tela de transações
                     context.go('/transactions');
                   },
-                  child: const Text('Ver Todas'),
+                  child: const Text('Ver todas'),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            
-            if (transactions.isEmpty)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.receipt_long_outlined,
-                        size: 48,
-                        color: Colors.grey,
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        'Nenhuma transação registrada',
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              ...transactions.map((transaction) => _buildTransactionItem(
-                context,
-                transaction,
-              )),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: transactions.length,
+              itemBuilder: (context, index) {
+                final transaction = transactions[index];
+                return _buildTransactionItem(context, transaction);
+              },
+            ),
           ],
         ),
       ),
@@ -76,25 +73,32 @@ class RecentTransactionsCard extends StatelessWidget {
 
   Widget _buildTransactionItem(BuildContext context, models.Transaction transaction) {
     final theme = Theme.of(context);
-    final isIncome = transaction.type == models.TransactionType.income;
-    final color = isIncome ? Colors.green : Colors.red;
-    final icon = isIncome ? Icons.arrow_upward : Icons.arrow_downward;
+    final provider = context.read<FinanceProvider>();
+    
+    // Obter o nome da categoria a partir do ID
+    final categoryName = _getCategoryName(provider, transaction.category);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
-          // Ícone do tipo de transação
+          // Ícone da transação
           Container(
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
+              color: transaction.type == models.TransactionType.income 
+                  ? Colors.green.withValues(alpha: 0.1)
+                  : Colors.red.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
-              icon,
-              color: color,
+              transaction.type == models.TransactionType.income 
+                  ? Icons.arrow_upward 
+                  : Icons.arrow_downward,
+              color: transaction.type == models.TransactionType.income 
+                  ? Colors.green 
+                  : Colors.red,
               size: 20,
             ),
           ),
@@ -115,20 +119,23 @@ class RecentTransactionsCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    Text(
-                      transaction.category,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[600],
+                    Expanded(
+                      child: Text(
+                        categoryName,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[600],
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 4),
                     Text(
                       '•',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: Colors.grey[400],
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 4),
                     Text(
                       Formatters.formatDate(transaction.date),
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -136,14 +143,14 @@ class RecentTransactionsCard extends StatelessWidget {
                       ),
                     ),
                     if (transaction.installments != null && transaction.installments! > 1) ...[
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 4),
                       Text(
                         '•',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: Colors.grey[400],
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 4),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                         decoration: BoxDecoration(
@@ -162,12 +169,12 @@ class RecentTransactionsCard extends StatelessWidget {
                     ],
                   ],
                 ),
-                                    if (transaction.recurrenceType == models.RecurrenceType.monthly) ...[
+                if (transaction.recurrenceType == models.RecurrenceType.monthly) ...[
                   const SizedBox(height: 2),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                     decoration: BoxDecoration(
-                                                color: Colors.orange.withValues(alpha: 0.1),
+                      color: Colors.orange.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
@@ -196,26 +203,10 @@ class RecentTransactionsCard extends StatelessWidget {
                 ),
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: color,
+                  color: transaction.type == models.TransactionType.income 
+                      ? Colors.green 
+                      : Colors.red,
                 ),
-              ),
-              const SizedBox(height: 2),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    Formatters.getPaymentMethodIcon(transaction.paymentMethod.index),
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    Formatters.formatPaymentMethod(transaction.paymentMethod.index),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.grey[600],
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
               ),
             ],
           ),
@@ -223,4 +214,13 @@ class RecentTransactionsCard extends StatelessWidget {
       ),
     );
   }
-} 
+
+  String _getCategoryName(FinanceProvider provider, String categoryId) {
+    try {
+      final category = provider.categories.firstWhere((c) => c.id == categoryId);
+      return category.name;
+    } catch (e) {
+      return 'Categoria não encontrada';
+    }
+  }
+}

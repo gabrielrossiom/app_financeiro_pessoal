@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../providers/providers.dart';
 import '../utils/utils.dart';
 import '../models/models.dart' as models;
@@ -93,7 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Cabeçalho do mês
+                  // Resumo do mês
                   _buildMonthHeader(currentMonth),
                   const SizedBox(height: 24),
                   
@@ -107,18 +107,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 24),
                   
-                  // Resumo por categoria
-                  _buildCategorySummary(provider),
+                  // Gastos por categoria
+                  _buildExpensesByCategory(),
                   const SizedBox(height: 24),
                   
                   // Transações recentes
-                  RecentTransactionsCard(
-                    transactions: provider.transactions.take(5).toList(),
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  // Ações rápidas
-                  _buildQuickActions(context),
+                  _buildRecentTransactions(),
                 ],
               ),
             ),
@@ -144,37 +138,62 @@ class _HomeScreenState extends State<HomeScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.calendar_today),
-                  onPressed: () {
-                    // TODO: Implementar seletor de mês
-                  },
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios, size: 16),
+                      onPressed: () => _selectPreviousMonth(),
+                    ),
+                    Text(
+                      '${DateFormat('dd/MM/yyyy').format(currentMonth.startDate)} a ${DateFormat('dd/MM/yyyy').format(currentMonth.endDate)}',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onPressed: () => _selectNextMonth(),
+                    ),
+                  ],
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            Text(
-              Formatters.formatFinancialMonthPeriod(
-                currentMonth.startDate,
-                currentMonth.endDate,
-              ),
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-            const SizedBox(height: 8),
             Row(
               children: [
-                Icon(
-                  currentMonth.isClosed ? Icons.lock : Icons.lock_open,
-                  size: 16,
-                  color: currentMonth.isClosed ? Colors.red : Colors.green,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  currentMonth.isClosed ? 'Mês Fechado' : 'Mês Aberto',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: currentMonth.isClosed ? Colors.red : Colors.green,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _isMonthOpen(currentMonth) ? Colors.green : Colors.red,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _isMonthOpen(currentMonth) ? 'ABERTO' : 'FECHADO',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
+                const SizedBox(width: 8),
+                if (currentMonth.budget != null && currentMonth.budget! > 0) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getBudgetColor(currentMonth),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${_getBudgetPercentage(currentMonth)}% do orçamento',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ],
@@ -183,9 +202,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildCategorySummary(FinanceProvider provider) {
+  Widget _buildExpensesByCategory() {
     return FutureBuilder<Map<String, double>>(
-      future: provider.getExpensesByCategory(),
+      future: context.read<FinanceProvider>().getExpensesByCategory(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Card(
@@ -200,7 +219,12 @@ class _HomeScreenState extends State<HomeScreen> {
           return Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Text('Erro ao carregar categorias: ${snapshot.error}'),
+              child: Center(
+                child: Text(
+                  'Erro ao carregar dados: ${snapshot.error}',
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
             ),
           );
         }
@@ -208,86 +232,103 @@ class _HomeScreenState extends State<HomeScreen> {
         final expensesByCategory = snapshot.data ?? {};
         
         if (expensesByCategory.isEmpty) {
-          return Card(
-            child: const Padding(
+          return const Card(
+            child: Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Nenhuma despesa registrada neste mês'),
+              child: Center(
+                child: Text('Nenhuma despesa registrada neste mês'),
+              ),
             ),
           );
         }
 
         return CategorySummaryCard(
           expensesByCategory: expensesByCategory,
-          categories: provider.categories,
+          categories: context.read<FinanceProvider>().categories,
         );
       },
     );
   }
 
-  Widget _buildQuickActions(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Ações Rápidas',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      context.go('/add-transaction');
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('Nova Transação'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      context.go('/categories');
-                    },
-                    icon: const Icon(Icons.category),
-                    label: const Text('Categorias'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      context.go('/reports');
-                    },
-                    icon: const Icon(Icons.bar_chart),
-                    label: const Text('Relatórios'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      context.go('/settings');
-                    },
-                    icon: const Icon(Icons.settings),
-                    label: const Text('Configurações'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
+  Widget _buildRecentTransactions() {
+    return RecentTransactionsCard(
+      transactions: context.read<FinanceProvider>().transactions.take(5).toList(),
     );
+  }
+
+  // Métodos para seleção de mês
+  Future<void> _selectMonth() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: context.read<FinanceProvider>().currentFinancialMonth?.startDate ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      locale: const Locale('pt', 'BR'),
+    );
+    
+    if (picked != null) {
+      await context.read<FinanceProvider>().loadFinancialMonth(picked);
+    }
+  }
+
+  Future<void> _selectPreviousMonth() async {
+    final currentMonth = context.read<FinanceProvider>().currentFinancialMonth;
+    if (currentMonth != null) {
+      final previousMonth = currentMonth.previousMonth;
+      await context.read<FinanceProvider>().loadFinancialMonth(previousMonth.startDate);
+    }
+  }
+
+  Future<void> _selectNextMonth() async {
+    final currentMonth = context.read<FinanceProvider>().currentFinancialMonth;
+    if (currentMonth != null) {
+      final nextMonth = currentMonth.nextMonth;
+      if (nextMonth.startDate.isBefore(DateTime.now())) {
+        await context.read<FinanceProvider>().loadFinancialMonth(nextMonth.startDate);
+      }
+    }
+  }
+
+  Color _getBudgetColor(models.FinancialMonth month) {
+    if (month.isBudgetExceeded) {
+      return Colors.red;
+    } else if (month.isNearBudgetLimit) {
+      return Colors.orange;
+    } else {
+      return Colors.green;
+    }
+  }
+
+  double _getBudgetPercentage(models.FinancialMonth month) {
+    if (month.budget != null && month.budget! > 0) {
+      return (month.budgetUsagePercentage * 100).toDouble();
+    }
+    return 0.0;
+  }
+
+  bool _isMonthOpen(models.FinancialMonth month) {
+    final now = DateTime.now();
+    
+    // Se o mês foi explicitamente fechado, está fechado
+    if (month.isClosed) {
+      return false;
+    }
+    
+    // Se a data atual está dentro do período do mês financeiro, está aberto
+    if (month.containsDate(now)) {
+      return true;
+    }
+    
+    // Se a data atual é posterior ao fim do mês financeiro, está fechado
+    if (now.isAfter(month.endDate)) {
+      return false;
+    }
+    
+    // Se a data atual é anterior ao início do mês financeiro, está fechado
+    if (now.isBefore(month.startDate)) {
+      return false;
+    }
+    
+    return true;
   }
 } 

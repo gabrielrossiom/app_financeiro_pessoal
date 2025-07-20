@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'providers/providers.dart';
@@ -27,6 +28,15 @@ class FinanceiroPessoalApp extends StatelessWidget {
       ],
       child: MaterialApp.router(
         title: 'Controle Financeiro Pessoal',
+        locale: const Locale('pt', 'BR'),
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('pt', 'BR'),
+        ],
         theme: ThemeData(
           primarySwatch: Colors.blue,
           useMaterial3: true,
@@ -162,6 +172,7 @@ class ScaffoldWithNavigationBar extends StatefulWidget {
 
 class _ScaffoldWithNavigationBarState extends State<ScaffoldWithNavigationBar> {
   int _currentIndex = 0;
+  String _currentPath = '/';
 
   @override
   void initState() {
@@ -174,6 +185,9 @@ class _ScaffoldWithNavigationBarState extends State<ScaffoldWithNavigationBar> {
 
   @override
   Widget build(BuildContext context) {
+    // Atualizar o path atual baseado na rota
+    _currentPath = GoRouterState.of(context).uri.path;
+    
     return Scaffold(
       body: widget.child,
       bottomNavigationBar: NavigationBar(
@@ -228,7 +242,7 @@ class _ScaffoldWithNavigationBarState extends State<ScaffoldWithNavigationBar> {
           ),
         ],
       ),
-      floatingActionButton: _currentIndex == 1 ? FloatingActionButton(
+      floatingActionButton: _currentIndex == 1 && !_currentPath.contains('add-transaction') ? FloatingActionButton(
         onPressed: () => context.go('/add-transaction'),
         child: const Icon(Icons.add),
       ) : null,
