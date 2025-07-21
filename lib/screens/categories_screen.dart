@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../providers/providers.dart';
 import '../models/models.dart' as models;
 import '../utils/utils.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 class CategoriesScreen extends StatefulWidget {
   const CategoriesScreen({super.key});
@@ -24,7 +24,6 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
   Future<void> _loadCategories() async {
     setState(() => _isLoading = true);
-    
     try {
       final provider = context.read<FinanceProvider>();
       final categories = await provider.getCategories();
@@ -51,7 +50,6 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
             final provider = context.read<FinanceProvider>();
             await provider.addCategory(category);
             await _loadCategories();
-            
             if (mounted) {
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
@@ -80,7 +78,6 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
             final provider = context.read<FinanceProvider>();
             await provider.updateCategory(updatedCategory);
             await _loadCategories();
-            
             if (mounted) {
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
@@ -99,12 +96,12 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     );
   }
 
-  Future<void> _deleteCategory(models.Category category) async {
-    final confirmed = await showDialog<bool>(
+  void _deleteCategory(models.Category category) async {
+    final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirmar exclusão'),
-        content: Text('Tem certeza que deseja excluir a categoria "${category.name}"?\n\nEsta ação não pode ser desfeita.'),
+        title: const Text('Excluir Categoria'),
+        content: Text('Tem certeza que deseja excluir a categoria "${category.name}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -112,19 +109,16 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Excluir'),
+            child: const Text('Excluir', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
-
-    if (confirmed == true) {
+    if (confirm == true) {
       try {
         final provider = context.read<FinanceProvider>();
         await provider.deleteCategory(category.id);
         await _loadCategories();
-        
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Categoria excluída com sucesso!')),
@@ -176,7 +170,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                       ),
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80), // Padding inferior para o FAB
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
                       itemCount: _categories.length,
                       itemBuilder: (context, index) {
                         return _buildCategoryCard(_categories[index], true);
@@ -269,7 +263,6 @@ class _CategoryDialogState extends State<_CategoryDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _budgetController = TextEditingController();
-  
   String _selectedIcon = '📁';
   Color _selectedColor = Colors.blue;
   bool _isActive = true;
@@ -307,11 +300,9 @@ class _CategoryDialogState extends State<_CategoryDialog> {
 
   void _saveCategory() {
     if (!_formKey.currentState!.validate()) return;
-
     final name = _nameController.text.trim();
     final budget = double.tryParse(_budgetController.text) ?? 0.0;
     final color = '#${_selectedColor.value.toRadixString(16).substring(2)}';
-
     final category = models.Category(
       id: widget.category?.id,
       name: name,
@@ -321,7 +312,6 @@ class _CategoryDialogState extends State<_CategoryDialog> {
       isActive: _isActive,
       createdAt: widget.category?.createdAt,
     );
-
     widget.onSave(category);
   }
 
@@ -329,15 +319,11 @@ class _CategoryDialogState extends State<_CategoryDialog> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text(
-          'Escolher cor',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Escolher cor', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         content: SingleChildScrollView(
-          child: ColorPicker(
+          child: BlockPicker(
             pickerColor: _selectedColor,
             onColorChanged: (color) => setState(() => _selectedColor = color),
-            pickerAreaHeightPercent: 0.8,
           ),
         ),
         actions: [
@@ -354,10 +340,7 @@ class _CategoryDialogState extends State<_CategoryDialog> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text(
-          'Escolher ícone',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Escolher ícone', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         content: SizedBox(
           width: double.maxFinite,
           height: 350,
@@ -409,7 +392,6 @@ class _CategoryDialogState extends State<_CategoryDialog> {
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.category != null;
-    
     return AlertDialog(
       title: Text(
         isEditing ? 'Editar Categoria' : 'Nova Categoria',
@@ -422,7 +404,6 @@ class _CategoryDialogState extends State<_CategoryDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Nome
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(
@@ -438,8 +419,6 @@ class _CategoryDialogState extends State<_CategoryDialog> {
                 },
               ),
               const SizedBox(height: 16),
-              
-              // Orçamento mensal
               TextFormField(
                 controller: _budgetController,
                 keyboardType: TextInputType.number,
@@ -461,12 +440,10 @@ class _CategoryDialogState extends State<_CategoryDialog> {
                 ),
               ),
               const SizedBox(height: 16),
-              
-              // Cor
               const Text('Cor da categoria', style: TextStyle(fontWeight: FontWeight.w500)),
               const SizedBox(height: 8),
               Container(
-                height: 48, // Mesmo tamanho do TextFormField
+                height: 48,
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey.shade300),
                   borderRadius: BorderRadius.circular(8),
@@ -495,12 +472,10 @@ class _CategoryDialogState extends State<_CategoryDialog> {
                 ),
               ),
               const SizedBox(height: 16),
-              
-              // Ícone
               const Text('Ícone da categoria', style: TextStyle(fontWeight: FontWeight.w500)),
               const SizedBox(height: 8),
               Container(
-                height: 48, // Mesmo tamanho do TextFormField
+                height: 48,
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey.shade300),
                   borderRadius: BorderRadius.circular(8),
