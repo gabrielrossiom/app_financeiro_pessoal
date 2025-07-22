@@ -1,9 +1,16 @@
 import 'package:flutter/foundation.dart';
 import '../models/models.dart' as models;
 import '../services/services.dart';
+import 'package:uuid/uuid.dart';
 
 class FinanceProvider with ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
+
+  // Função auxiliar para criar datas válidas ao somar meses
+  DateTime _safeDate(int year, int month, int day) {
+    final lastDay = DateTime(year, month + 1, 0).day;
+    return DateTime(year, month, day > lastDay ? lastDay : day);
+  }
   
   // Estado atual
   List<models.Transaction> _transactions = [];
@@ -89,34 +96,50 @@ class FinanceProvider with ChangeNotifier {
   Future<void> addTransaction(models.Transaction transaction) async {
     _setLoading(true);
     try {
-      // Inserir transação principal
-      await _databaseService.insertTransaction(transaction);
-      
-      // Se for parcelada, criar as parcelas
-      if (transaction.installments != null && transaction.installments! > 1) {
-        final installments = transaction.createInstallments();
-        await _databaseService.insertTransactions(installments);
-      }
-      
-      // Se for recorrente mensal, criar próxima recorrência
-      if (transaction.recurrenceType == models.RecurrenceType.monthly) {
-        final nextRecurrence = transaction.createNextRecurrence();
-        if (nextRecurrence != null) {
-          await _databaseService.insertTransaction(nextRecurrence);
+      final List<models.Transaction> toInsert = [];
+      final now = DateTime.now();
+      // Lógica para recorrência mensal até dezembro
+      if ((transaction.type == models.TransactionType.expenseAccount ||
+           transaction.type == models.TransactionType.incomeAccount ||
+           transaction.type == models.TransactionType.creditCardPurchase)
+          && transaction.recurrenceType == models.RecurrenceType.recorrente) {
+        // Cria uma transação para cada mês até dezembro
+        DateTime data = transaction.date;
+        while (data.year == now.year && data.month <= 12) {
+          toInsert.add(transaction.copyWith(id: Uuid().v4(), date: data));
+          data = _safeDate(data.year, data.month + 1, data.day);
         }
       }
-      
+      // Lógica para compra parcelada
+      else if (transaction.type == models.TransactionType.creditCardPurchase && transaction.recurrenceType == models.RecurrenceType.parcelada && transaction.installments != null && transaction.installments! > 1) {
+        final valorParcela = transaction.amount / transaction.installments!;
+        for (int i = 0; i < transaction.installments!; i++) {
+          final parcelaDate = _safeDate(transaction.date.year, transaction.date.month + i, transaction.date.day);
+          toInsert.add(transaction.copyWith(
+            id: Uuid().v4(),
+            amount: valorParcela,
+            date: parcelaDate,
+            currentInstallment: i + 1,
+            parentTransactionId: transaction.id,
+          ));
+        }
+      }
+      // Caso padrão: transação única ou compra em cartão não parcelada
+      else {
+        toInsert.add(transaction);
+      }
+      // Inserir todas as transações
+      for (final t in toInsert) {
+        await _databaseService.insertTransaction(t);
+      }
       // Recarregar transações e atualizar totais do mês financeiro
       await _loadTransactions();
       await _updateFinancialMonthTotals();
-      
-      // Recarregar o mês financeiro do banco para garantir dados atualizados
       await _loadCurrentFinancialMonth();
-      
       _error = null;
     } catch (e) {
       _error = 'Erro ao adicionar transação: $e';
-      rethrow; // Re-throw para que a UI possa mostrar o erro
+      rethrow;
     } finally {
       _setLoading(false);
     }
@@ -294,7 +317,6 @@ class FinanceProvider with ChangeNotifier {
   Future<List<models.Transaction>> getFilteredTransactions({
     models.TransactionType? type,
     String? category,
-    models.PaymentMethod? paymentMethod,
   }) async {
     if (_currentFinancialMonth == null) return [];
     
@@ -303,7 +325,6 @@ class FinanceProvider with ChangeNotifier {
       endDate: _currentFinancialMonth!.endDate,
       type: type,
       category: category,
-      paymentMethod: paymentMethod,
     );
     return transactions;
   }

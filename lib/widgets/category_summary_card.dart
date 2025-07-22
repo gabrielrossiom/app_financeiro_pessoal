@@ -48,7 +48,7 @@ class CategorySummaryCard extends StatelessWidget {
             const SizedBox(height: 16),
             
             // Lista de categorias
-            ...sortedCategories.take(5).map((entry) {
+            ...sortedCategories.map((entry) {
               final categoryName = entry.key;
               final amount = entry.value;
               final percentage = totalExpenses > 0 ? (amount / totalExpenses) * 100.0 : 0.0;
@@ -71,24 +71,6 @@ class CategorySummaryCard extends StatelessWidget {
                 totalExpenses,
               );
             }),
-            
-            // Mostrar "ver mais" se houver mais de 5 categorias
-            if (sortedCategories.length > 5) ...[
-              const SizedBox(height: 12),
-              Center(
-                child: TextButton(
-                  onPressed: () {
-                    // TODO: Navegar para tela de relatórios detalhados
-                  },
-                  child: Text(
-                    'Ver mais ${sortedCategories.length - 5} categorias',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ),

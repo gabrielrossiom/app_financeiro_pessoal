@@ -1,60 +1,41 @@
 import 'package:uuid/uuid.dart';
 
 enum TransactionType {
-  income,    // Receita
-  expense,   // Despesa
+  expenseAccount,    // Despesa em conta
+  incomeAccount,     // Receita em conta
+  creditCardPayment, // Pagamento de fatura de cartão
+  creditCardPurchase // Compra em cartão de crédito
 }
 
 extension TransactionTypeExtension on TransactionType {
   String get displayName {
     switch (this) {
-      case TransactionType.income:
-        return 'Receita';
-      case TransactionType.expense:
-        return 'Despesa';
-    }
-  }
-}
-
-enum PaymentMethod {
-  creditCard,    // Cartão de Crédito
-  debitCard,     // Cartão de Débito
-  pix,           // Pix
-  cash,          // Dinheiro
-  bankTransfer,  // Transferência Bancária
-}
-
-extension PaymentMethodExtension on PaymentMethod {
-  String get displayName {
-    switch (this) {
-      case PaymentMethod.creditCard:
-        return 'Cartão de Crédito';
-      case PaymentMethod.debitCard:
-        return 'Cartão de Débito';
-      case PaymentMethod.pix:
-        return 'Pix';
-      case PaymentMethod.cash:
-        return 'Dinheiro';
-      case PaymentMethod.bankTransfer:
-        return 'Transferência Bancária';
+      case TransactionType.expenseAccount:
+        return 'Despesa em conta';
+      case TransactionType.incomeAccount:
+        return 'Receita em conta';
+      case TransactionType.creditCardPayment:
+        return 'Pagamento de fatura de cartão';
+      case TransactionType.creditCardPurchase:
+        return 'Compra em cartão de crédito';
     }
   }
 }
 
 enum RecurrenceType {
-  none,       // Única
-  monthly,    // Mensal
-  installment, // Parcelada
+  unica,        // Única
+  recorrente,   // Recorrente
+  parcelada,    // Parcelada (apenas para compra em cartão)
 }
 
 extension RecurrenceTypeExtension on RecurrenceType {
   String get displayName {
     switch (this) {
-      case RecurrenceType.none:
+      case RecurrenceType.unica:
         return 'Única';
-      case RecurrenceType.monthly:
-        return 'Mensal';
-      case RecurrenceType.installment:
+      case RecurrenceType.recorrente:
+        return 'Recorrente';
+      case RecurrenceType.parcelada:
         return 'Parcelada';
     }
   }
@@ -65,16 +46,12 @@ class Transaction {
   final String description;
   final double amount;
   final TransactionType type;
-  final PaymentMethod paymentMethod;
-  final String category;
+  final String? category; // Só para despesa em conta e compra em cartão
   final DateTime date;
-  final RecurrenceType recurrenceType;
-  final int? installments;
+  final RecurrenceType? recurrenceType; // Só para tipos que usam recorrência
+  final int? installments; // Só para compra em cartão parcelada
   final int? currentInstallment;
   final String? parentTransactionId; // Para parcelamentos
-  final bool isRefundable;
-  final double? refundAmount;
-  final bool isRefunded;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -83,194 +60,147 @@ class Transaction {
     required this.description,
     required this.amount,
     required this.type,
-    required this.paymentMethod,
-    required this.category,
+    this.category,
     required this.date,
-    this.recurrenceType = RecurrenceType.none,
+    this.recurrenceType,
     this.installments,
     this.currentInstallment,
     this.parentTransactionId,
-    this.isRefundable = false,
-    this.refundAmount,
-    this.isRefunded = false,
     DateTime? createdAt,
     DateTime? updatedAt,
-  }) : 
-    id = id ?? const Uuid().v4(),
-    createdAt = createdAt ?? DateTime.now(),
-    updatedAt = updatedAt ?? DateTime.now();
+  })  : id = id ?? const Uuid().v4(),
+        createdAt = createdAt ?? DateTime.now(),
+        updatedAt = updatedAt ?? DateTime.now();
 
-  // Construtor para criar uma nova transação
-  factory Transaction.create({
+  // Construtores de fábrica para cada tipo
+  factory Transaction.expenseAccount({
     required String description,
     required double amount,
-    required TransactionType type,
-    required PaymentMethod paymentMethod,
     required String category,
     required DateTime date,
-    RecurrenceType recurrenceType = RecurrenceType.none,
-    int? installments,
-    bool isRefundable = false,
+    required RecurrenceType recurrenceType, // unica ou recorrente
   }) {
     return Transaction(
       description: description,
       amount: amount,
-      type: type,
-      paymentMethod: paymentMethod,
+      type: TransactionType.expenseAccount,
       category: category,
       date: date,
       recurrenceType: recurrenceType,
-      installments: installments,
-      currentInstallment: installments != null ? 1 : null,
-      isRefundable: isRefundable,
     );
   }
 
-  // Método para criar parcelas de uma transação
-  List<Transaction> createInstallments() {
-    if (installments == null || installments! <= 1) {
-      return [this];
-    }
-
-    final monthlyAmount = amount / installments!;
-    final installmentsList = <Transaction>[];
-
-    for (int i = 0; i < installments!; i++) {
-      final installmentDate = DateTime(date.year, date.month + i, date.day);
-      
-      installmentsList.add(Transaction(
-        description: '$description (${i + 1}/$installments)',
-        amount: monthlyAmount,
-        type: type,
-        paymentMethod: paymentMethod,
-        category: category,
-        date: installmentDate,
-        recurrenceType: RecurrenceType.installment,
-        installments: installments,
-        currentInstallment: i + 1,
-        parentTransactionId: id,
-        isRefundable: isRefundable,
-        refundAmount: refundAmount != null ? refundAmount! / installments! : null,
-      ));
-    }
-
-    return installmentsList;
-  }
-
-  // Método para criar próxima recorrência mensal
-  Transaction? createNextRecurrence() {
-    if (recurrenceType != RecurrenceType.monthly) {
-      return null;
-    }
-
-    final nextDate = DateTime(date.year, date.month + 1, date.day);
-    
+  factory Transaction.incomeAccount({
+    required String description,
+    required double amount,
+    required DateTime date,
+    required RecurrenceType recurrenceType, // unica ou recorrente
+  }) {
     return Transaction(
       description: description,
       amount: amount,
-      type: type,
-      paymentMethod: paymentMethod,
-      category: category,
-      date: nextDate,
+      type: TransactionType.incomeAccount,
+      date: date,
       recurrenceType: recurrenceType,
-      isRefundable: isRefundable,
-      refundAmount: refundAmount,
     );
   }
 
-  // Método para verificar se a transação pertence ao mês financeiro
-  bool belongsToFinancialMonth(DateTime monthStart) {
-    final monthEnd = DateTime(monthStart.year, monthStart.month + 1, 19);
-    return date.isAfter(monthStart.subtract(const Duration(days: 1))) && 
-           date.isBefore(monthEnd.add(const Duration(days: 1)));
-  }
-
-  // Método para obter o mês financeiro da transação
-  DateTime getFinancialMonth() {
-    if (date.day >= 20) {
-      return DateTime(date.year, date.month, 20);
-    } else {
-      return DateTime(date.year, date.month - 1, 20);
-    }
-  }
-
-  // Método para copiar com alterações
-  Transaction copyWith({
-    String? description,
-    double? amount,
-    TransactionType? type,
-    PaymentMethod? paymentMethod,
-    String? category,
-    DateTime? date,
-    RecurrenceType? recurrenceType,
-    int? installments,
-    int? currentInstallment,
-    String? parentTransactionId,
-    bool? isRefundable,
-    double? refundAmount,
-    bool? isRefunded,
+  factory Transaction.creditCardPayment({
+    required String description,
+    required double amount,
+    required DateTime date,
   }) {
     return Transaction(
-      id: id,
-      description: description ?? this.description,
-      amount: amount ?? this.amount,
-      type: type ?? this.type,
-      paymentMethod: paymentMethod ?? this.paymentMethod,
-      category: category ?? this.category,
-      date: date ?? this.date,
-      recurrenceType: recurrenceType ?? this.recurrenceType,
-      installments: installments ?? this.installments,
-      currentInstallment: currentInstallment ?? this.currentInstallment,
-      parentTransactionId: parentTransactionId ?? this.parentTransactionId,
-      isRefundable: isRefundable ?? this.isRefundable,
-      refundAmount: refundAmount ?? this.refundAmount,
-      isRefunded: isRefunded ?? this.isRefunded,
-      createdAt: createdAt,
-      updatedAt: DateTime.now(),
+      description: description,
+      amount: amount,
+      type: TransactionType.creditCardPayment,
+      date: date,
     );
   }
 
-  // Conversão para Map (para banco de dados)
+  factory Transaction.creditCardPurchase({
+    required String description,
+    required double amount,
+    required String category,
+    required DateTime date,
+    required RecurrenceType recurrenceType, // unica, recorrente ou parcelada
+    int? installments,
+  }) {
+    return Transaction(
+      description: description,
+      amount: amount,
+      type: TransactionType.creditCardPurchase,
+      category: category,
+      date: date,
+      recurrenceType: recurrenceType,
+      installments: recurrenceType == RecurrenceType.parcelada ? installments : null,
+      currentInstallment: recurrenceType == RecurrenceType.parcelada ? 1 : null,
+    );
+  }
+
+  // Métodos auxiliares e serialização
   Map<String, dynamic> toMap() {
-    return {
-      'id': id,
+    final map = <String, dynamic>{
       'description': description,
       'amount': amount,
       'type': type.index,
-      'paymentMethod': paymentMethod.index,
       'category': category,
       'date': date.millisecondsSinceEpoch,
-      'recurrenceType': recurrenceType.index,
+      'recurrenceType': recurrenceType?.index,
       'installments': installments,
       'currentInstallment': currentInstallment,
       'parentTransactionId': parentTransactionId,
-      'isRefundable': isRefundable ? 1 : 0,
-      'refundAmount': refundAmount,
-      'isRefunded': isRefunded ? 1 : 0,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'updatedAt': updatedAt.millisecondsSinceEpoch,
     };
+    if (id != null) {
+      map['id'] = id;
+    }
+    return map;
   }
 
-  // Criação a partir de Map (do banco de dados)
   factory Transaction.fromMap(Map<String, dynamic> map) {
     return Transaction(
       id: map['id'],
       description: map['description'],
       amount: map['amount'],
       type: TransactionType.values[map['type']],
-      paymentMethod: PaymentMethod.values[map['paymentMethod']],
       category: map['category'],
       date: DateTime.fromMillisecondsSinceEpoch(map['date']),
-      recurrenceType: RecurrenceType.values[map['recurrenceType']],
+      recurrenceType: map['recurrenceType'] != null ? RecurrenceType.values[map['recurrenceType']] : null,
       installments: map['installments'],
       currentInstallment: map['currentInstallment'],
       parentTransactionId: map['parentTransactionId'],
-      isRefundable: map['isRefundable'] == 1,
-      refundAmount: map['refundAmount'],
-      isRefunded: map['isRefunded'] == 1,
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt']),
       updatedAt: DateTime.fromMillisecondsSinceEpoch(map['updatedAt']),
+    );
+  }
+
+  Transaction copyWith({
+    String? id,
+    String? description,
+    double? amount,
+    TransactionType? type,
+    String? category,
+    DateTime? date,
+    RecurrenceType? recurrenceType,
+    int? installments,
+    int? currentInstallment,
+    String? parentTransactionId,
+  }) {
+    return Transaction(
+      id: id ?? this.id,
+      description: description ?? this.description,
+      amount: amount ?? this.amount,
+      type: type ?? this.type,
+      category: category ?? this.category,
+      date: date ?? this.date,
+      recurrenceType: recurrenceType ?? this.recurrenceType,
+      installments: installments ?? this.installments,
+      currentInstallment: currentInstallment ?? this.currentInstallment,
+      parentTransactionId: parentTransactionId ?? this.parentTransactionId,
+      createdAt: createdAt,
+      updatedAt: DateTime.now(),
     );
   }
 } 

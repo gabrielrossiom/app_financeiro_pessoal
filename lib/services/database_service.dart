@@ -5,7 +5,7 @@ import '../models/models.dart' as models;
 class DatabaseService {
   static Database? _database;
   static const String _databaseName = 'financeiro_pessoal.db';
-  static const int _databaseVersion = 1;
+  static const int _databaseVersion = 2;
 
   // Singleton pattern
   static final DatabaseService _instance = DatabaseService._internal();
@@ -26,7 +26,16 @@ class DatabaseService {
       path,
       version: _databaseVersion,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Migração destrutiva: dropa e recria a tabela de transações
+      await db.execute('DROP TABLE IF EXISTS transactions');
+      await _createTransactionsTable(db);
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -75,31 +84,29 @@ class DatabaseService {
       )
     ''');
 
-    // Tabela de transações
+    await _createTransactionsTable(db);
+    // Inserir categorias padrão
+    await _insertDefaultCategories(db);
+  }
+
+  Future<void> _createTransactionsTable(Database db) async {
     await db.execute('''
       CREATE TABLE transactions (
         id TEXT PRIMARY KEY,
         description TEXT NOT NULL,
         amount REAL NOT NULL,
         type INTEGER NOT NULL,
-        paymentMethod INTEGER NOT NULL,
-        category TEXT NOT NULL,
+        category TEXT,
         date INTEGER NOT NULL,
-        recurrenceType INTEGER NOT NULL DEFAULT 0,
+        recurrenceType INTEGER,
         installments INTEGER,
         currentInstallment INTEGER,
         parentTransactionId TEXT,
-        isRefundable INTEGER NOT NULL DEFAULT 0,
-        refundAmount REAL,
-        isRefunded INTEGER NOT NULL DEFAULT 0,
         createdAt INTEGER NOT NULL,
         updatedAt INTEGER NOT NULL,
         FOREIGN KEY (parentTransactionId) REFERENCES transactions (id)
       )
     ''');
-
-    // Inserir categorias padrão
-    await _insertDefaultCategories(db);
   }
 
   Future<void> _insertDefaultCategories(Database db) async {
@@ -223,7 +230,6 @@ class DatabaseService {
     DateTime? endDate,
     models.TransactionType? type,
     String? category,
-    models.PaymentMethod? paymentMethod,
   }) async {
     final db = await database;
     
@@ -248,12 +254,6 @@ class DatabaseService {
       if (whereClause.isNotEmpty) whereClause += ' AND ';
       whereClause += 'category = ?';
       whereArgs.add(category);
-    }
-
-    if (paymentMethod != null) {
-      if (whereClause.isNotEmpty) whereClause += ' AND ';
-      whereClause += 'paymentMethod = ?';
-      whereArgs.add(paymentMethod.index);
     }
 
     final List<Map<String, dynamic>> maps = await db.query(
@@ -317,11 +317,12 @@ class DatabaseService {
       SELECT c.name as category_name, SUM(t.amount) as total
       FROM transactions t
       INNER JOIN categories c ON t.category = c.id
-      WHERE t.type = ? AND t.date >= ? AND t.date <= ?
+      WHERE (t.type = ? OR t.type = ?) AND t.date >= ? AND t.date <= ?
       GROUP BY c.id, c.name
       ORDER BY total DESC
     ''', [
-      models.TransactionType.expense.index,
+      models.TransactionType.expenseAccount.index,
+      models.TransactionType.creditCardPurchase.index,
       startDate.millisecondsSinceEpoch,
       endDate.millisecondsSinceEpoch,
     ]);
@@ -340,7 +341,7 @@ class DatabaseService {
       FROM transactions
       WHERE type = ? AND date >= ? AND date <= ?
     ''', [
-      models.TransactionType.income.index,
+      models.TransactionType.incomeAccount.index,
       startDate.millisecondsSinceEpoch,
       endDate.millisecondsSinceEpoch,
     ]);
@@ -353,9 +354,10 @@ class DatabaseService {
     final List<Map<String, dynamic>> maps = await db.rawQuery('''
       SELECT SUM(amount) as total
       FROM transactions
-      WHERE type = ? AND date >= ? AND date <= ?
+      WHERE (type = ? OR type = ?) AND date >= ? AND date <= ?
     ''', [
-      models.TransactionType.expense.index,
+      models.TransactionType.expenseAccount.index,
+      models.TransactionType.creditCardPayment.index,
       startDate.millisecondsSinceEpoch,
       endDate.millisecondsSinceEpoch,
     ]);

@@ -87,16 +87,16 @@ class RecentTransactionsCard extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: transaction.type == models.TransactionType.income 
+              color: transaction.type == models.TransactionType.incomeAccount 
                   ? Colors.green.withValues(alpha: 0.1)
                   : Colors.red.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
-              transaction.type == models.TransactionType.income 
+              transaction.type == models.TransactionType.incomeAccount 
                   ? Icons.arrow_upward 
                   : Icons.arrow_downward,
-              color: transaction.type == models.TransactionType.income 
+              color: transaction.type == models.TransactionType.incomeAccount 
                   ? Colors.green 
                   : Colors.red,
               size: 20,
@@ -169,7 +169,25 @@ class RecentTransactionsCard extends StatelessWidget {
                     ],
                   ],
                 ),
-                if (transaction.recurrenceType == models.RecurrenceType.monthly) ...[
+                if (transaction.recurrenceType == models.RecurrenceType.unica) ...[
+                  const SizedBox(height: 2),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'Única',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.orange,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                ],
+                if (transaction.recurrenceType == models.RecurrenceType.recorrente) ...[
                   const SizedBox(height: 2),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
@@ -181,6 +199,24 @@ class RecentTransactionsCard extends StatelessWidget {
                       'Recorrente',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: Colors.orange,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                ],
+                if (transaction.recurrenceType == models.RecurrenceType.parcelada) ...[
+                  const SizedBox(height: 2),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'Parcelada',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.blue,
                         fontWeight: FontWeight.bold,
                         fontSize: 10,
                       ),
@@ -203,7 +239,7 @@ class RecentTransactionsCard extends StatelessWidget {
                 ),
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: transaction.type == models.TransactionType.income 
+                  color: transaction.type == models.TransactionType.incomeAccount 
                       ? Colors.green 
                       : Colors.red,
                 ),
@@ -215,12 +251,13 @@ class RecentTransactionsCard extends StatelessWidget {
     );
   }
 
-  String _getCategoryName(FinanceProvider provider, String categoryId) {
+  String _getCategoryName(FinanceProvider provider, String? categoryId) {
+    if (categoryId == null || categoryId.isEmpty) return '';
     try {
       final category = provider.categories.firstWhere((c) => c.id == categoryId);
       return category.name;
     } catch (e) {
-      return 'Categoria não encontrada';
+      return '';
     }
   }
 }

@@ -27,8 +27,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
   // Filtros
   models.TransactionType? _selectedType;
   String? _selectedCategory;
-  models.PaymentMethod? _selectedPaymentMethod;
-  
+  models.RecurrenceType? _selectedRecurrenceType;
+
   // Estatísticas adicionais
   int _totalTransactions = 0;
   double _averageTransactionValue = 0;
@@ -67,7 +67,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
         _monthlyTransactions = await provider.getFilteredTransactions(
           type: _selectedType,
           category: _selectedCategory,
-          paymentMethod: _selectedPaymentMethod,
         );
         
         // Calcular estatísticas adicionais
@@ -504,7 +503,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
               final transactions = groupedTransactions[date]!;
               final dayTotal = transactions.fold<double>(
                 0,
-                (sum, t) => sum + (t.type == models.TransactionType.income ? t.amount : -t.amount),
+                (sum, t) => sum + (t.type == models.TransactionType.incomeAccount ? t.amount : -t.amount),
               );
 
               return Column(
@@ -532,11 +531,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     child: Row(
                       children: [
                         Icon(
-                          transaction.type == models.TransactionType.income
+                          transaction.type == models.TransactionType.incomeAccount
                               ? Icons.trending_up
                               : Icons.trending_down,
                           size: 16,
-                          color: transaction.type == models.TransactionType.income
+                          color: transaction.type == models.TransactionType.incomeAccount
                               ? Colors.green
                               : Colors.red,
                         ),
@@ -554,7 +553,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            color: transaction.type == models.TransactionType.income
+                            color: transaction.type == models.TransactionType.incomeAccount
                                 ? Colors.green
                                 : Colors.red,
                           ),
@@ -616,11 +615,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 final transaction = _monthlyTransactions[index];
                 return ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: transaction.type == models.TransactionType.income 
+                    backgroundColor: transaction.type == models.TransactionType.incomeAccount 
                         ? Colors.green 
                         : Colors.red,
                     child: Icon(
-                      transaction.type == models.TransactionType.income 
+                      transaction.type == models.TransactionType.incomeAccount 
                           ? Icons.arrow_upward 
                           : Icons.arrow_downward,
                       color: Colors.white,
@@ -634,7 +633,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   trailing: Text(
                     Formatters.formatCurrency(transaction.amount),
                     style: TextStyle(
-                      color: transaction.type == models.TransactionType.income 
+                      color: transaction.type == models.TransactionType.incomeAccount 
                           ? Colors.green 
                           : Colors.red,
                       fontWeight: FontWeight.bold,
@@ -745,13 +744,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return colors[hash.abs() % colors.length];
   }
 
-  String _getCategoryName(String categoryId) {
+  String _getCategoryName(String? categoryId) {
+    if (categoryId == null || categoryId.isEmpty) return '';
     try {
       final provider = context.read<FinanceProvider>();
       final category = provider.categories.firstWhere((c) => c.id == categoryId);
       return category.name;
     } catch (e) {
-      return 'Categoria não encontrada';
+      return '';
     }
   }
 } 

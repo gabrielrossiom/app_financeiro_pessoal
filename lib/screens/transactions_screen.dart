@@ -16,16 +16,26 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   final _searchController = TextEditingController();
   models.TransactionType? _selectedType;
   String? _selectedCategory;
-  models.PaymentMethod? _selectedPaymentMethod;
+  // Removido filtro de método de pagamento
   
   List<models.Transaction> _transactions = [];
   List<models.Category> _categories = [];
   bool _isLoading = true;
+  models.FinancialMonth? _selectedMonth;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    final provider = context.read<FinanceProvider>();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await provider.loadFinancialMonth(DateTime.now());
+      setState(() {
+        _selectedMonth = provider.currentFinancialMonth;
+      });
+      if (_selectedMonth != null) {
+        await _loadDataForMonth(_selectedMonth!);
+      }
+    });
   }
 
   @override
@@ -48,6 +58,37 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     });
   }
 
+  Future<void> _loadDataForMonth(models.FinancialMonth month) async {
+    setState(() => _isLoading = true);
+    final provider = context.read<FinanceProvider>();
+    await provider.loadFinancialMonth(month.startDate);
+    final categories = await provider.getCategories();
+    final transactions = await provider.getFilteredTransactions();
+    setState(() {
+      _categories = categories;
+      _transactions = transactions;
+      _isLoading = false;
+    });
+  }
+
+  void _goToPreviousMonth() {
+    if (_selectedMonth == null) return;
+    final prevMonth = _selectedMonth!.previousMonth;
+    setState(() {
+      _selectedMonth = prevMonth;
+    });
+    _loadDataForMonth(prevMonth);
+  }
+
+  void _goToNextMonth() {
+    if (_selectedMonth == null) return;
+    final nextMonth = _selectedMonth!.nextMonth;
+    setState(() {
+      _selectedMonth = nextMonth;
+    });
+    _loadDataForMonth(nextMonth);
+  }
+
   Future<void> _applyFilters() async {
     setState(() => _isLoading = true);
     
@@ -55,7 +96,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final transactions = await provider.getFilteredTransactions(
       type: _selectedType,
       category: _selectedCategory,
-      paymentMethod: _selectedPaymentMethod,
     );
     
     setState(() {
@@ -68,7 +108,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     setState(() {
       _selectedType = null;
       _selectedCategory = null;
-      _selectedPaymentMethod = null;
       _searchController.clear();
     });
     _loadData();
@@ -135,6 +174,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     }
   }
 
+  models.Category? _findCategory(String? id) {
+    try {
+      return _categories.firstWhere((c) => c.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final filteredTransactions = _getFilteredTransactions();
@@ -142,42 +189,49 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Transações'),
-        actions: [
-          IconButton(
-            onPressed: () => _showFilterDialog(),
-            icon: const Icon(Icons.filter_list),
-          ),
-        ],
       ),
       body: Column(
         children: [
-          // Barra de busca
+          // Campo de busca e filtros
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16.0),
             child: TextField(
               controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Buscar transações...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {});
-                        },
-                        icon: const Icon(Icons.clear),
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+              decoration: const InputDecoration(
+                labelText: 'Buscar',
+                prefixIcon: Icon(Icons.search),
               ),
-              onChanged: (value) => setState(() {}),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+          // Navegação de meses financeiros centralizada
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chevron_left),
+                  onPressed: _goToPreviousMonth,
+                ),
+                Text(
+                  _selectedMonth == null
+                    ? ''
+                    : DateFormat('dd/MM/yyyy').format(_selectedMonth!.startDate) +
+                      ' a ' +
+                      DateFormat('dd/MM/yyyy').format(_selectedMonth!.endDate),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.chevron_right),
+                  onPressed: _goToNextMonth,
+                ),
+              ],
             ),
           ),
 
           // Filtros ativos
-          if (_selectedType != null || _selectedCategory != null || _selectedPaymentMethod != null)
+          if (_selectedType != null || _selectedCategory != null)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
@@ -202,14 +256,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                   .name),
                               onDeleted: () {
                                 setState(() => _selectedCategory = null);
-                                _applyFilters();
-                              },
-                            ),
-                          if (_selectedPaymentMethod != null)
-                            Chip(
-                              label: Text(_selectedPaymentMethod!.displayName),
-                              onDeleted: () {
-                                setState(() => _selectedPaymentMethod = null);
                                 _applyFilters();
                               },
                             ),
@@ -248,22 +294,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         itemCount: filteredTransactions.length,
                         itemBuilder: (context, index) {
                           final transaction = filteredTransactions[index];
-                          final category = _categories.firstWhere(
-                            (c) => c.id == transaction.category,
-                            orElse: () => models.Category(
-                              name: 'Desconhecida',
-                              icon: '❓',
-                              color: '#9E9E9E',
-                            ),
-                          );
+                          final models.Category? category = _findCategory(transaction.category);
 
                           return Card(
                             margin: const EdgeInsets.only(bottom: 12),
                             child: ListTile(
                               leading: CircleAvatar(
-                                backgroundColor: Color(int.parse(category.color.replaceAll('#', '0xFF'))),
+                                backgroundColor: Color(int.parse(category?.color.replaceAll('#', '0xFF') ?? '0xFF9E9E9E')),
                                 child: Text(
-                                  category.icon,
+                                  category?.icon ??
+                                    (transaction.type == models.TransactionType.incomeAccount ? '💰' :
+                                     transaction.type == models.TransactionType.creditCardPayment ? '💳' :
+                                     '❓'),
                                   style: const TextStyle(
                                     fontSize: 16,
                                     color: Colors.white,
@@ -277,10 +319,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    '${category.name} • ${transaction.paymentMethod.displayName}',
-                                    style: TextStyle(color: Colors.grey[600]),
-                                  ),
+                                  if (category != null)
+                                    Text(
+                                      '${category.name} • ${transaction.type.displayName}',
+                                      style: TextStyle(color: Colors.grey[600]),
+                                    ),
                                   Text(
                                     DateFormat('dd/MM/yyyy').format(transaction.date),
                                     style: TextStyle(color: Colors.grey[600]),
@@ -304,19 +347,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
-                                      color: transaction.type == models.TransactionType.income
+                                      color: transaction.type == models.TransactionType.incomeAccount
                                           ? Colors.green[700]
                                           : Colors.red[700],
                                     ),
                                   ),
-                                  if (transaction.isRefunded)
-                                    Text(
-                                      'Reembolsado',
-                                      style: TextStyle(
-                                        color: Colors.green[600],
-                                        fontSize: 12,
-                                      ),
-                                    ),
                                 ],
                               ),
                               onTap: () => _showTransactionDetails(transaction),
@@ -347,13 +382,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       builder: (context) => _FilterBottomSheet(
         selectedType: _selectedType,
         selectedCategory: _selectedCategory,
-        selectedPaymentMethod: _selectedPaymentMethod,
         categories: _categories,
-        onApply: (type, category, paymentMethod) {
+        onApply: (type, category) {
           setState(() {
             _selectedType = type;
             _selectedCategory = category;
-            _selectedPaymentMethod = paymentMethod;
           });
           _applyFilters();
           Navigator.of(context).pop();
@@ -366,14 +399,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 class _FilterBottomSheet extends StatefulWidget {
   final models.TransactionType? selectedType;
   final String? selectedCategory;
-  final models.PaymentMethod? selectedPaymentMethod;
   final List<models.Category> categories;
-  final Function(models.TransactionType?, String?, models.PaymentMethod?) onApply;
+  final Function(models.TransactionType?, String?) onApply;
 
   const _FilterBottomSheet({
     required this.selectedType,
     required this.selectedCategory,
-    required this.selectedPaymentMethod,
     required this.categories,
     required this.onApply,
   });
@@ -385,14 +416,12 @@ class _FilterBottomSheet extends StatefulWidget {
 class _FilterBottomSheetState extends State<_FilterBottomSheet> {
   late models.TransactionType? _selectedType;
   late String? _selectedCategory;
-  late models.PaymentMethod? _selectedPaymentMethod;
 
   @override
   void initState() {
     super.initState();
     _selectedType = widget.selectedType;
     _selectedCategory = widget.selectedCategory;
-    _selectedPaymentMethod = widget.selectedPaymentMethod;
   }
 
   @override
@@ -475,28 +504,6 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
               setState(() => _selectedCategory = value);
             },
           ),
-          const SizedBox(height: 16),
-
-          // Método de pagamento
-          const Text('Método de Pagamento', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<models.PaymentMethod>(
-            value: _selectedPaymentMethod,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              hintText: 'Todos os métodos',
-            ),
-            items: [
-              const DropdownMenuItem(value: null, child: Text('Todos os métodos')),
-              ...models.PaymentMethod.values.map((method) => DropdownMenuItem(
-                value: method,
-                child: Text(method.displayName),
-              )),
-            ],
-            onChanged: (value) {
-              setState(() => _selectedPaymentMethod = value);
-            },
-          ),
           const SizedBox(height: 24),
 
           // Botões
@@ -508,7 +515,6 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
                     setState(() {
                       _selectedType = null;
                       _selectedCategory = null;
-                      _selectedPaymentMethod = null;
                     });
                   },
                   child: const Text('Limpar'),
@@ -518,7 +524,7 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
               Expanded(
                 child: ElevatedButton(
                   onPressed: () {
-                    widget.onApply(_selectedType, _selectedCategory, _selectedPaymentMethod);
+                    widget.onApply(_selectedType, _selectedCategory);
                   },
                   child: const Text('Aplicar'),
                 ),
@@ -562,19 +568,14 @@ class _TransactionDetailsSheet extends StatelessWidget {
           
           _DetailRow('Valor', Formatters.formatCurrency(transaction.amount)),
           _DetailRow('Tipo', transaction.type.displayName),
-          _DetailRow('Categoria', transaction.category),
-          _DetailRow('Método', transaction.paymentMethod.displayName),
+          _DetailRow('Categoria', transaction.category ?? '-'),
           _DetailRow('Data', DateFormat('dd/MM/yyyy').format(transaction.date)),
-          if (transaction.recurrenceType != models.RecurrenceType.none)
-            _DetailRow('Recorrência', transaction.recurrenceType.displayName),
+          if (transaction.recurrenceType != models.RecurrenceType.unica)
+            _DetailRow('Recorrência', transaction.recurrenceType?.displayName ?? '-'),
           if (transaction.installments != null && transaction.installments! > 1) ...[
             _DetailRow('Parcelas', '${transaction.currentInstallment}/${transaction.installments}'),
             _DetailRow('Valor da parcela', Formatters.formatCurrency(transaction.amount / transaction.installments!)),
           ],
-          if (transaction.isRefundable)
-            _DetailRow('Reembolsável', 'Sim'),
-          if (transaction.isRefunded && transaction.refundAmount != null)
-            _DetailRow('Reembolso', Formatters.formatCurrency(transaction.refundAmount!)),
           
           const SizedBox(height: 16),
         ],

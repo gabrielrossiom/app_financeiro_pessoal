@@ -18,9 +18,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final _descriptionController = TextEditingController();
   final _amountController = TextEditingController();
   
-  models.TransactionType _selectedType = models.TransactionType.expense;
-  models.PaymentMethod _selectedPaymentMethod = models.PaymentMethod.cash;
-  models.RecurrenceType _selectedRecurrence = models.RecurrenceType.none;
+  models.TransactionType _selectedType = models.TransactionType.expenseAccount;
+  models.RecurrenceType? _selectedRecurrence;
   String? _selectedCategory;
   DateTime _selectedDate = DateTime.now();
   int _installments = 1;
@@ -76,7 +75,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   void _saveTransaction() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedCategory == null) {
+    // Validação de categoria só para tipos que exigem
+    if ((_selectedType == models.TransactionType.expenseAccount || _selectedType == models.TransactionType.creditCardPurchase) && _selectedCategory == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Selecione uma categoria')),
       );
@@ -86,17 +86,41 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     try {
       final amount = double.parse(_amountController.text.replaceAll(',', '.'));
       final provider = context.read<FinanceProvider>();
-      
-      final transaction = models.Transaction(
-        description: _descriptionController.text.trim(),
-        amount: amount,
-        type: _selectedType,
-        paymentMethod: _selectedPaymentMethod,
-        category: _selectedCategory!,
-        date: _selectedDate,
-        recurrenceType: _selectedRecurrence,
-        installments: _installments > 1 ? _installments : null,
-      );
+      models.Transaction transaction;
+      // Criação conforme o tipo
+      if (_selectedType == models.TransactionType.expenseAccount) {
+        transaction = models.Transaction.expenseAccount(
+          description: _descriptionController.text.trim(),
+          amount: amount,
+          category: _selectedCategory!,
+          date: _selectedDate,
+          recurrenceType: _selectedRecurrence!,
+        );
+      } else if (_selectedType == models.TransactionType.incomeAccount) {
+        transaction = models.Transaction.incomeAccount(
+          description: _descriptionController.text.trim(),
+          amount: amount,
+          date: _selectedDate,
+          recurrenceType: _selectedRecurrence!,
+        );
+      } else if (_selectedType == models.TransactionType.creditCardPayment) {
+        transaction = models.Transaction.creditCardPayment(
+          description: _descriptionController.text.trim(),
+          amount: amount,
+          date: _selectedDate,
+        );
+      } else if (_selectedType == models.TransactionType.creditCardPurchase) {
+        transaction = models.Transaction.creditCardPurchase(
+          description: _descriptionController.text.trim(),
+          amount: amount,
+          category: _selectedCategory!,
+          date: _selectedDate,
+          recurrenceType: _selectedRecurrence!,
+          installments: _selectedRecurrence == models.RecurrenceType.parcelada ? _installments : null,
+        );
+      } else {
+        throw Exception('Tipo de transação inválido');
+      }
 
       await provider.addTransaction(transaction);
       
@@ -104,7 +128,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Transação adicionada com sucesso!')),
         );
-        // Navegar para a listagem de transações
         context.go('/transactions');
       }
     } catch (e) {
@@ -142,31 +165,48 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Row(
+                    Wrap(
+                      spacing: 8,
                       children: [
-                        Expanded(
-                          child: RadioListTile<models.TransactionType>(
-                            title: const Text('Despesa'),
-                            value: models.TransactionType.expense,
-                            groupValue: _selectedType,
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedType = value!;
-                              });
-                            },
-                          ),
+                        ChoiceChip(
+                          label: Text(models.TransactionType.expenseAccount.displayName),
+                          selected: _selectedType == models.TransactionType.expenseAccount,
+                          onSelected: (_) {
+                            setState(() {
+                              _selectedType = models.TransactionType.expenseAccount;
+                              _selectedRecurrence = null;
+                            });
+                          },
                         ),
-                        Expanded(
-                          child: RadioListTile<models.TransactionType>(
-                            title: const Text('Receita'),
-                            value: models.TransactionType.income,
-                            groupValue: _selectedType,
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedType = value!;
-                              });
-                            },
-                          ),
+                        ChoiceChip(
+                          label: Text(models.TransactionType.incomeAccount.displayName),
+                          selected: _selectedType == models.TransactionType.incomeAccount,
+                          onSelected: (_) {
+                            setState(() {
+                              _selectedType = models.TransactionType.incomeAccount;
+                              _selectedRecurrence = null;
+                            });
+                          },
+                        ),
+                        ChoiceChip(
+                          label: Text(models.TransactionType.creditCardPayment.displayName),
+                          selected: _selectedType == models.TransactionType.creditCardPayment,
+                          onSelected: (_) {
+                            setState(() {
+                              _selectedType = models.TransactionType.creditCardPayment;
+                              _selectedRecurrence = null;
+                            });
+                          },
+                        ),
+                        ChoiceChip(
+                          label: Text(models.TransactionType.creditCardPurchase.displayName),
+                          selected: _selectedType == models.TransactionType.creditCardPurchase,
+                          onSelected: (_) {
+                            setState(() {
+                              _selectedType = models.TransactionType.creditCardPurchase;
+                              _selectedRecurrence = null;
+                            });
+                          },
                         ),
                       ],
                     ),
@@ -216,78 +256,50 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Categoria
-            const Text('Categoria', style: TextStyle(fontWeight: FontWeight.w500)),
-            const SizedBox(height: 8),
-            Container(
-              height: 48,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: DropdownButtonFormField<String>(
-                value: _selectedCategory,
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            // Categoria (apenas para despesa em conta e compra em cartão)
+            if (_selectedType == models.TransactionType.expenseAccount || _selectedType == models.TransactionType.creditCardPurchase) ...[
+              const Text('Categoria', style: TextStyle(fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              Container(
+                height: 48,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                items: _categories.map((category) {
-                  return DropdownMenuItem(
-                    value: category.id,
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 16,
-                          height: 16,
-                          decoration: BoxDecoration(
-                            color: Color(int.parse(category.color.replaceAll('#', '0xFF'))),
-                            shape: BoxShape.circle,
+                child: DropdownButtonFormField<String>(
+                  value: _selectedCategory,
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  items: _categories.map((category) {
+                    return DropdownMenuItem(
+                      value: category.id,
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 16,
+                            height: 16,
+                            decoration: BoxDecoration(
+                              color: Color(int.parse(category.color.replaceAll('#', '0xFF'))),
+                              shape: BoxShape.circle,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(category.name),
-                      ],
-                    ),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedCategory = value;
-                  });
-                },
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Método de pagamento
-            const Text('Método de Pagamento', style: TextStyle(fontWeight: FontWeight.w500)),
-            const SizedBox(height: 8),
-            Container(
-              height: 48,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: DropdownButtonFormField<models.PaymentMethod>(
-                value: _selectedPaymentMethod,
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          const SizedBox(width: 8),
+                          Text(category.name),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedCategory = value;
+                    });
+                  },
                 ),
-                items: models.PaymentMethod.values.map((method) {
-                  return DropdownMenuItem(
-                    value: method,
-                    child: Text(method.displayName),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedPaymentMethod = value!;
-                  });
-                },
               ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
+            ],
 
             // Data
             const Text('Data', style: TextStyle(fontWeight: FontWeight.w500)),
@@ -319,38 +331,81 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Recorrência
-            const Text('Recorrência', style: TextStyle(fontWeight: FontWeight.w500)),
-            const SizedBox(height: 8),
-            Container(
-              height: 48,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: DropdownButtonFormField<models.RecurrenceType>(
-                value: _selectedRecurrence,
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            // Recorrência (condicional)
+            if (_selectedType == models.TransactionType.expenseAccount || _selectedType == models.TransactionType.incomeAccount) ...[
+              const Text('Recorrência', style: TextStyle(fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              Container(
+                height: 48,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                items: models.RecurrenceType.values.map((recurrence) {
-                  return DropdownMenuItem(
-                    value: recurrence,
-                    child: Text(recurrence.displayName),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedRecurrence = value!;
-                  });
-                },
+                child: DropdownButtonFormField<models.RecurrenceType>(
+                  value: _selectedRecurrence,
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  items: [
+                    DropdownMenuItem(
+                      value: models.RecurrenceType.unica,
+                      child: Text(models.RecurrenceType.unica.displayName),
+                    ),
+                    DropdownMenuItem(
+                      value: models.RecurrenceType.recorrente,
+                      child: Text(models.RecurrenceType.recorrente.displayName),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedRecurrence = value;
+                    });
+                  },
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
+            ] else if (_selectedType == models.TransactionType.creditCardPurchase) ...[
+              const Text('Recorrência', style: TextStyle(fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              Container(
+                height: 48,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: DropdownButtonFormField<models.RecurrenceType>(
+                  value: _selectedRecurrence,
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  items: [
+                    DropdownMenuItem(
+                      value: models.RecurrenceType.unica,
+                      child: Text(models.RecurrenceType.unica.displayName),
+                    ),
+                    DropdownMenuItem(
+                      value: models.RecurrenceType.recorrente,
+                      child: Text(models.RecurrenceType.recorrente.displayName),
+                    ),
+                    DropdownMenuItem(
+                      value: models.RecurrenceType.parcelada,
+                      child: Text(models.RecurrenceType.parcelada.displayName),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedRecurrence = value;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
 
-            // Parcelas (apenas se for cartão de crédito)
-            if (_selectedPaymentMethod == models.PaymentMethod.creditCard) ...[
+            // Parcelas (apenas se for compra em cartão e recorrência parcelada)
+            if (_selectedType == models.TransactionType.creditCardPurchase && _selectedRecurrence == models.RecurrenceType.parcelada) ...[
               const Text('Parcelas', style: TextStyle(fontWeight: FontWeight.w500)),
               const SizedBox(height: 8),
               TextFormField(
