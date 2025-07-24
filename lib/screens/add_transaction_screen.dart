@@ -23,6 +23,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String? _selectedCategory;
   DateTime _selectedDate = DateTime.now();
   int _installments = 1;
+  models.Transaction? _editingTransaction;
 
   List<models.Category> _categories = [];
 
@@ -30,6 +31,22 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   void initState() {
     super.initState();
     _loadCategories();
+    // Detectar se está editando
+    Future.microtask(() {
+      final args = GoRouter.of(context).routerDelegate.currentConfiguration.extra;
+      if (args is models.Transaction) {
+        setState(() {
+          _editingTransaction = args;
+          _descriptionController.text = args.description;
+          _amountController.text = args.amount.toStringAsFixed(2);
+          _selectedType = args.type;
+          _selectedCategory = args.category;
+          _selectedDate = args.date;
+          _selectedRecurrence = args.recurrenceType;
+          _installments = args.installments ?? 1;
+        });
+      }
+    });
   }
 
   @override
@@ -120,6 +137,19 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         );
       } else {
         throw Exception('Tipo de transação inválido');
+      }
+
+      if (_editingTransaction != null) {
+        // Atualizar transação existente
+        final updated = transaction.copyWith(id: _editingTransaction!.id);
+        await provider.updateTransaction(updated);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Transação atualizada com sucesso!')),
+          );
+          context.go('/transactions');
+        }
+        return;
       }
 
       await provider.addTransaction(transaction);
@@ -331,77 +361,69 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Recorrência (condicional)
-            if (_selectedType == models.TransactionType.expenseAccount || _selectedType == models.TransactionType.incomeAccount) ...[
-              const Text('Recorrência', style: TextStyle(fontWeight: FontWeight.w500)),
-              const SizedBox(height: 8),
-              Container(
-                height: 48,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: DropdownButtonFormField<models.RecurrenceType>(
+            // Recorrência (só exibe se não estiver editando)
+            if (_editingTransaction == null) ...[
+              if ((_selectedType == models.TransactionType.expenseAccount ||
+                  _selectedType == models.TransactionType.incomeAccount) &&
+                  _selectedType != models.TransactionType.creditCardPurchase) ...[
+                const Text('Recorrência', style: TextStyle(fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<models.RecurrenceType>(
                   value: _selectedRecurrence,
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  items: [
-                    DropdownMenuItem(
-                      value: models.RecurrenceType.unica,
-                      child: Text(models.RecurrenceType.unica.displayName),
-                    ),
-                    DropdownMenuItem(
-                      value: models.RecurrenceType.recorrente,
-                      child: Text(models.RecurrenceType.recorrente.displayName),
-                    ),
-                  ],
+                  items: models.RecurrenceType.values
+                      .where((r) => r != models.RecurrenceType.parcelada)
+                      .map((recurrence) => DropdownMenuItem(
+                            value: recurrence,
+                            child: Text(recurrence.displayName),
+                          ))
+                      .toList(),
                   onChanged: (value) {
                     setState(() {
                       _selectedRecurrence = value;
                     });
                   },
-                ),
-              ),
-              const SizedBox(height: 16),
-            ] else if (_selectedType == models.TransactionType.creditCardPurchase) ...[
-              const Text('Recorrência', style: TextStyle(fontWeight: FontWeight.w500)),
-              const SizedBox(height: 8),
-              Container(
-                height: 48,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: DropdownButtonFormField<models.RecurrenceType>(
-                  value: _selectedRecurrence,
                   decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    labelText: 'Recorrência',
+                    border: OutlineInputBorder(),
                   ),
-                  items: [
-                    DropdownMenuItem(
-                      value: models.RecurrenceType.unica,
-                      child: Text(models.RecurrenceType.unica.displayName),
-                    ),
-                    DropdownMenuItem(
-                      value: models.RecurrenceType.recorrente,
-                      child: Text(models.RecurrenceType.recorrente.displayName),
-                    ),
-                    DropdownMenuItem(
-                      value: models.RecurrenceType.parcelada,
-                      child: Text(models.RecurrenceType.parcelada.displayName),
-                    ),
-                  ],
+                  validator: (value) {
+                    if (value == null) {
+                      return 'Selecione a recorrência';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+              ],
+              if (_selectedType == models.TransactionType.creditCardPurchase) ...[
+                const Text('Recorrência', style: TextStyle(fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<models.RecurrenceType>(
+                  value: _selectedRecurrence,
+                  items: models.RecurrenceType.values
+                      .map((recurrence) => DropdownMenuItem(
+                            value: recurrence,
+                            child: Text(recurrence.displayName),
+                          ))
+                      .toList(),
                   onChanged: (value) {
                     setState(() {
                       _selectedRecurrence = value;
                     });
                   },
+                  decoration: const InputDecoration(
+                    labelText: 'Recorrência',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null) {
+                      return 'Selecione a recorrência';
+                    }
+                    return null;
+                  },
                 ),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
+              ],
             ],
 
             // Parcelas (apenas se for compra em cartão e recorrência parcelada)

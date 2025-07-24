@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../providers/providers.dart';
 import '../models/models.dart' as models;
 import '../utils/utils.dart';
+import 'package:go_router/go_router.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -338,9 +339,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                     ),
                                 ],
                               ),
-                              trailing: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.end,
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
                                     Formatters.formatCurrency(transaction.amount),
@@ -351,6 +351,54 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                           ? Colors.green[700]
                                           : Colors.red[700],
                                     ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  PopupMenuButton<String>(
+                                    icon: const Icon(Icons.more_vert, size: 20),
+                                    padding: EdgeInsets.zero,
+                                    onSelected: (value) async {
+                                      if (value == 'edit') {
+                                        context.go('/add-transaction', extra: transaction);
+                                      } else if (value == 'delete') {
+                                        final confirm = await showDialog<bool>(
+                                          context: context,
+                                          builder: (context) => AlertDialog(
+                                            title: const Text('Excluir transação'),
+                                            content: const Text('Tem certeza que deseja excluir esta transação?'),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.of(context).pop(false),
+                                                child: const Text('Cancelar'),
+                                              ),
+                                              TextButton(
+                                                onPressed: () => Navigator.of(context).pop(true),
+                                                child: const Text('Excluir'),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                        if (confirm == true) {
+                                          await _deleteTransaction(transaction);
+                                          await _loadDataForMonth(_selectedMonth!);
+                                        }
+                                      }
+                                    },
+                                    itemBuilder: (context) => [
+                                      const PopupMenuItem(
+                                        value: 'edit',
+                                        child: ListTile(
+                                          leading: Icon(Icons.edit, size: 18),
+                                          title: Text('Editar'),
+                                        ),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'delete',
+                                        child: ListTile(
+                                          leading: Icon(Icons.delete, size: 18),
+                                          title: Text('Excluir'),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),

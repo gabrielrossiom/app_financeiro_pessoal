@@ -7,6 +7,7 @@ import '../models/models.dart' as models;
 import '../widgets/balance_card.dart';
 import '../widgets/category_summary_card.dart';
 import '../widgets/recent_transactions_card.dart';
+import '../widgets/credit_card_bill_card.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,17 +17,79 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  models.FinancialMonth? _selectedMonth;
+  bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
-    // Carregar dados quando a tela for criada
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<FinanceProvider>().initialize();
+    _loadCurrentMonth();
+  }
+
+  Future<void> _loadCurrentMonth() async {
+    final provider = context.read<FinanceProvider>();
+    await provider.loadFinancialMonth(DateTime.now());
+    setState(() {
+      _selectedMonth = provider.currentFinancialMonth;
+      _isLoading = false;
     });
+  }
+
+  Future<void> _loadMonth(models.FinancialMonth month) async {
+    setState(() => _isLoading = true);
+    final provider = context.read<FinanceProvider>();
+    await provider.loadFinancialMonth(month.startDate);
+    setState(() {
+      _selectedMonth = provider.currentFinancialMonth;
+      _isLoading = false;
+    });
+  }
+
+  void _goToPreviousMonth() {
+    if (_selectedMonth == null) return;
+    final prevMonth = _selectedMonth!.previousMonth;
+    _loadMonth(prevMonth);
+  }
+
+  void _goToNextMonth() {
+    if (_selectedMonth == null) return;
+    final nextMonth = _selectedMonth!.nextMonth;
+    _loadMonth(nextMonth);
   }
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<FinanceProvider>();
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    final currentMonth = _selectedMonth;
+    if (currentMonth == null) {
+      return const Scaffold(
+        body: Center(child: Text('Nenhum mês financeiro encontrado')),
+      );
+    }
+
+    // Calcular período da fatura (igual ao mês financeiro)
+    final billStart = currentMonth.startDate;
+    final billEnd = currentMonth.endDate;
+
+    // Calcular valor da fatura em aberto (soma das compras no cartão no período)
+    final creditCardPurchases = provider.transactions.where((t) =>
+      t.type == models.TransactionType.creditCardPurchase &&
+      t.date.isAfter(billStart.subtract(const Duration(days: 1))) &&
+      t.date.isBefore(billEnd.add(const Duration(days: 1)))
+    );
+    final billAmount = creditCardPurchases.fold<double>(0, (sum, t) => sum + t.amount);
+
+    void closeBill() {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Funcionalidade de fechamento de fatura será implementada futuramente.')),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Controle Financeiro'),
@@ -39,164 +102,126 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: Consumer<FinanceProvider>(
-        builder: (context, provider, child) {
-          if (provider.isLoading) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          if (provider.error != null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: 64,
-                    color: Theme.of(context).colorScheme.error,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Erro ao carregar dados',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    provider.error!,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => provider.initialize(),
-                    child: const Text('Tentar Novamente'),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          final currentMonth = provider.currentFinancialMonth;
-          if (currentMonth == null) {
-            return const Center(
-              child: Text('Nenhum mês financeiro encontrado'),
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: () => provider.initialize(),
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Resumo do mês
-                  _buildMonthHeader(currentMonth),
-                  const SizedBox(height: 24),
-                  
-                  // Card de saldo
-                  BalanceCard(
-                    totalIncome: currentMonth.totalIncome,
-                    totalExpenses: currentMonth.totalExpenses,
-                    balance: currentMonth.balance,
-                    budget: currentMonth.budget,
-                    remainingBudget: currentMonth.remainingBudget,
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  // Gastos por categoria
-                  _buildExpensesByCategory(),
-                  const SizedBox(height: 24),
-                  
-                  // Transações recentes
-                  _buildRecentTransactions(),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildMonthHeader(models.FinancialMonth currentMonth) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Mês Financeiro',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_ios, size: 16),
-                      onPressed: () => _selectPreviousMonth(),
-                    ),
-                    Text(
-                      '${DateFormat('dd/MM/yyyy').format(currentMonth.startDate)} a ${DateFormat('dd/MM/yyyy').format(currentMonth.endDate)}',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
+      body: RefreshIndicator(
+        onRefresh: _loadCurrentMonth,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Card de seleção de período
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.chevron_left),
+                        onPressed: _goToPreviousMonth,
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.arrow_forward_ios, size: 16),
-                      onPressed: () => _selectNextMonth(),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _isMonthOpen(currentMonth) ? Colors.green : Colors.red,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    _isMonthOpen(currentMonth) ? 'ABERTO' : 'FECHADO',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (currentMonth.budget != null && currentMonth.budget! > 0) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getBudgetColor(currentMonth),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${_getBudgetPercentage(currentMonth)}% do orçamento',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                      Text(
+                        '${DateFormat('dd/MM/yyyy').format(currentMonth.startDate)} a ${DateFormat('dd/MM/yyyy').format(currentMonth.endDate)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                       ),
-                    ),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_right),
+                        onPressed: _goToNextMonth,
+                      ),
+                    ],
                   ),
-                ],
-              ],
-            ),
-          ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Card de saldo
+              BalanceCard(
+                totalIncome: currentMonth.totalIncome,
+                totalExpenses: currentMonth.totalExpenses,
+                balance: currentMonth.balance,
+                budget: currentMonth.budget,
+                remainingBudget: currentMonth.remainingBudget,
+              ),
+              const SizedBox(height: 24),
+              // Card de gastos com cartão de crédito (agora depois do resumo do mês)
+              CreditCardBillCard(
+                amount: billAmount,
+                startDate: billStart,
+                endDate: billEnd,
+                onCloseBill: closeBill,
+                onViewTransactions: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                    ),
+                    builder: (context) {
+                      final faturaTransacoes = provider.transactions.where((t) =>
+                        t.type == models.TransactionType.creditCardPurchase &&
+                        t.date.isAfter(billStart.subtract(const Duration(days: 1))) &&
+                        t.date.isBefore(billEnd.add(const Duration(days: 1)))
+                      ).toList();
+                      return DraggableScrollableSheet(
+                        expand: false,
+                        initialChildSize: 0.7,
+                        minChildSize: 0.3,
+                        maxChildSize: 0.95,
+                        builder: (context, scrollController) => Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Transações da Fatura',
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  Text(
+                                    '${DateFormat('dd/MM/yyyy').format(billStart)} a ${DateFormat('dd/MM/yyyy').format(billEnd)}',
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              child: faturaTransacoes.isEmpty
+                                ? const Center(child: Text('Nenhuma transação encontrada.'))
+                                : ListView.builder(
+                                    controller: scrollController,
+                                    itemCount: faturaTransacoes.length,
+                                    itemBuilder: (context, index) {
+                                      final t = faturaTransacoes[index];
+                                      return ListTile(
+                                        title: Text(t.description),
+                                        subtitle: Text(DateFormat('dd/MM/yyyy').format(t.date)),
+                                        trailing: Text(
+                                          'R\$ ${t.amount.toStringAsFixed(2)}',
+                                          style: TextStyle(
+                                            color: Colors.red[700],
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+              const SizedBox(height: 24),
+              // Gastos por categoria
+              _buildExpensesByCategory(),
+              const SizedBox(height: 24),
+              // Transações recentes
+              RecentTransactionsCard(transactions: provider.transactions),
+            ],
+          ),
         ),
       ),
     );
