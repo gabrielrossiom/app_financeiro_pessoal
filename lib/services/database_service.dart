@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/models.dart' as models;
+import 'package:uuid/uuid.dart';
 
 class DatabaseService {
   static Database? _database;
@@ -10,7 +11,10 @@ class DatabaseService {
   // Singleton pattern
   static final DatabaseService _instance = DatabaseService._internal();
   factory DatabaseService() => _instance;
-  DatabaseService._internal();
+  DatabaseService._internal() {
+    // Garante que a tabela de fechamentos de fatura existe ao inicializar o serviço
+    createCreditCardClosingsTable();
+  }
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -115,6 +119,67 @@ class DatabaseService {
     for (final category in defaultCategories) {
       await db.insert('categories', category.toMap());
     }
+  }
+
+  // Tabela de Fechamentos de Fatura do Cartão de Crédito
+  Future<void> createCreditCardClosingsTable() async {
+    final db = await database;
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS credit_card_closings (
+        id TEXT PRIMARY KEY,
+        creditCardId TEXT,
+        closingDate INTEGER
+      )
+    ''');
+  }
+
+  Future<void> insertCreditCardClosing(String creditCardId, DateTime closingDate) async {
+    final db = await database;
+    await db.insert('credit_card_closings', {
+      'id': const Uuid().v4(),
+      'creditCardId': creditCardId,
+      'closingDate': closingDate.millisecondsSinceEpoch,
+    });
+  }
+
+  Future<DateTime?> getLastCreditCardClosing(String creditCardId) async {
+    final db = await database;
+    final result = await db.query(
+      'credit_card_closings',
+      where: 'creditCardId = ?',
+      whereArgs: [creditCardId],
+      orderBy: 'closingDate DESC',
+      limit: 1,
+    );
+    if (result.isEmpty) return null;
+    return DateTime.fromMillisecondsSinceEpoch(result.first['closingDate'] as int);
+  }
+
+  Future<List<DateTime>> getAllCreditCardClosings(String creditCardId) async {
+    final db = await database;
+    final result = await db.query(
+      'credit_card_closings',
+      where: 'creditCardId = ?',
+      whereArgs: [creditCardId],
+      orderBy: 'closingDate ASC',
+    );
+    return result.map((row) => DateTime.fromMillisecondsSinceEpoch(row['closingDate'] as int)).toList();
+  }
+
+  // Retorna o período da fatura em aberto (último fechamento até agora)
+  Future<Map<String, DateTime>> getCurrentInvoicePeriod(String creditCardId) async {
+    final lastClosing = await getLastCreditCardClosing(creditCardId);
+    final now = DateTime.now();
+    if (lastClosing == null) {
+      // Se nunca fechou, considerar desde o início do cartão
+      // Buscar data de criação do cartão
+      final db = await database;
+      final card = await db.query('credit_cards', where: 'id = ?', whereArgs: [creditCardId], limit: 1);
+      if (card.isEmpty) return {'start': now, 'end': now};
+      final createdAt = DateTime.fromMillisecondsSinceEpoch(card.first['createdAt'] as int);
+      return {'start': createdAt, 'end': now};
+    }
+    return {'start': lastClosing.add(const Duration(days: 1)), 'end': now};
   }
 
   // Métodos para Categorias

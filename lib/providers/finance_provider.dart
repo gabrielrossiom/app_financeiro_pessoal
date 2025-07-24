@@ -375,4 +375,106 @@ class FinanceProvider with ChangeNotifier {
     await _databaseService.close();
     super.dispose();
   }
+
+  // Fechar fatura do cartão de crédito
+  Future<void> closeCreditCardInvoice(String creditCardId) async {
+    await _databaseService.insertCreditCardClosing(creditCardId, DateTime.now());
+    notifyListeners();
+  }
+
+  // Obter período da fatura em aberto
+  Future<Map<String, DateTime>> getCurrentCreditCardInvoicePeriod(String creditCardId) async {
+    return await _databaseService.getCurrentInvoicePeriod(creditCardId);
+  }
+
+  // Obter transações do cartão de crédito da fatura em aberto
+  Future<List<models.Transaction>> getCurrentCreditCardInvoiceTransactions(String creditCardId) async {
+    final period = await getCurrentCreditCardInvoicePeriod(creditCardId);
+    return await _databaseService.getTransactions(
+      startDate: period['start'],
+      endDate: period['end'],
+      type: models.TransactionType.creditCardPurchase,
+    );
+  }
+
+  // Fechar fatura global do cartão de crédito (sem cartão)
+  Future<void> closeGlobalCreditCardInvoice() async {
+    final db = await _databaseService.database;
+    await db.insert('credit_card_closings', {
+      'id': const Uuid().v4(),
+      'creditCardId': null,
+      'closingDate': DateTime.now().millisecondsSinceEpoch,
+    });
+    notifyListeners();
+  }
+
+  // Obter período da fatura global (último fechamento até agora)
+  Future<Map<String, DateTime>> getCurrentGlobalCreditCardInvoicePeriod() async {
+    final db = await _databaseService.database;
+    final result = await db.query(
+      'credit_card_closings',
+      orderBy: 'closingDate DESC',
+      limit: 1,
+    );
+    final now = DateTime.now();
+    if (result.isEmpty) {
+      // Se nunca fechou, considerar desde o início do app
+      return {'start': DateTime(now.year, now.month, 1), 'end': now};
+    }
+    final lastClosing = DateTime.fromMillisecondsSinceEpoch(result.first['closingDate'] as int);
+    return {'start': lastClosing.add(const Duration(days: 1)), 'end': now};
+  }
+
+  // Obter período e status da fatura do cartão para um mês financeiro
+  Future<Map<String, dynamic>> getCreditCardInvoiceForFinancialMonth(DateTime financialMonthStart, DateTime financialMonthEnd) async {
+    final db = await _databaseService.database;
+    // Buscar todos os fechamentos ordenados
+    final closings = await db.query(
+      'credit_card_closings',
+      orderBy: 'closingDate ASC',
+    );
+    DateTime? lastClosingBeforeMonth;
+    DateTime? closingInMonth;
+    for (final row in closings) {
+      final closingDate = DateTime.fromMillisecondsSinceEpoch(row['closingDate'] as int);
+      if (closingDate.isBefore(financialMonthStart)) {
+        lastClosingBeforeMonth = closingDate;
+      } else if (closingDate.isAfter(financialMonthStart.subtract(const Duration(days: 1))) && closingDate.isBefore(financialMonthEnd.add(const Duration(days: 1)))) {
+        closingInMonth = closingDate;
+        break;
+      }
+    }
+    // Se houve fechamento dentro do mês financeiro, a fatura está fechada
+    if (closingInMonth != null) {
+      // Período: do último fechamento antes do mês até o fechamento dentro do mês
+      final start = (lastClosingBeforeMonth != null) ? lastClosingBeforeMonth.add(const Duration(days: 1)) : financialMonthStart;
+      final end = closingInMonth;
+      final txs = _transactions.where((t) =>
+        t.type == models.TransactionType.creditCardPurchase &&
+        t.date.isAfter(start.subtract(const Duration(days: 1))) &&
+        t.date.isBefore(end.add(const Duration(days: 1)))
+      ).toList();
+      return {
+        'status': 'FECHADA',
+        'start': start,
+        'end': end,
+        'transactions': txs,
+      };
+    } else {
+      // Fatura em aberto: do último fechamento até o fim do mês financeiro
+      final start = (lastClosingBeforeMonth != null) ? lastClosingBeforeMonth.add(const Duration(days: 1)) : financialMonthStart;
+      final end = financialMonthEnd;
+      final txs = _transactions.where((t) =>
+        t.type == models.TransactionType.creditCardPurchase &&
+        t.date.isAfter(start.subtract(const Duration(days: 1))) &&
+        t.date.isBefore(end.add(const Duration(days: 1)))
+      ).toList();
+      return {
+        'status': 'ABERTA',
+        'start': start,
+        'end': end,
+        'transactions': txs,
+      };
+    }
+  }
 } 

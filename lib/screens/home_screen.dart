@@ -8,6 +8,7 @@ import '../widgets/balance_card.dart';
 import '../widgets/category_summary_card.dart';
 import '../widgets/recent_transactions_card.dart';
 import '../widgets/credit_card_bill_card.dart';
+import 'package:uuid/uuid.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -72,22 +73,17 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // Calcular período da fatura (igual ao mês financeiro)
-    final billStart = currentMonth.startDate;
-    final billEnd = currentMonth.endDate;
+    // Período da fatura global (último fechamento até agora)
+    Future<Map<String, DateTime>> getCurrentCreditCardInvoicePeriodGlobal() async {
+      return await provider.getCurrentGlobalCreditCardInvoicePeriod();
+    }
 
-    // Calcular valor da fatura em aberto (soma das compras no cartão no período)
-    final creditCardPurchases = provider.transactions.where((t) =>
-      t.type == models.TransactionType.creditCardPurchase &&
-      t.date.isAfter(billStart.subtract(const Duration(days: 1))) &&
-      t.date.isBefore(billEnd.add(const Duration(days: 1)))
-    );
-    final billAmount = creditCardPurchases.fold<double>(0, (sum, t) => sum + t.amount);
-
-    void closeBill() {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Funcionalidade de fechamento de fatura será implementada futuramente.')),
-      );
+    Future<List<models.Transaction>> getCurrentCreditCardInvoiceTransactionsGlobal(DateTime start, DateTime end) async {
+      return provider.transactions.where((t) =>
+        t.type == models.TransactionType.creditCardPurchase &&
+        t.date.isAfter(start.subtract(const Duration(days: 1))) &&
+        t.date.isBefore(end.add(const Duration(days: 1)))
+      ).toList();
     }
 
     return Scaffold(
@@ -96,9 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {
-              // TODO: Implementar notificações
-            },
+            onPressed: () {},
           ),
         ],
       ),
@@ -144,73 +138,97 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 24),
               // Card de gastos com cartão de crédito (agora depois do resumo do mês)
-              CreditCardBillCard(
-                amount: billAmount,
-                startDate: billStart,
-                endDate: billEnd,
-                onCloseBill: closeBill,
-                onViewTransactions: () {
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                    ),
-                    builder: (context) {
-                      final faturaTransacoes = provider.transactions.where((t) =>
-                        t.type == models.TransactionType.creditCardPurchase &&
-                        t.date.isAfter(billStart.subtract(const Duration(days: 1))) &&
-                        t.date.isBefore(billEnd.add(const Duration(days: 1)))
-                      ).toList();
-                      return DraggableScrollableSheet(
-                        expand: false,
-                        initialChildSize: 0.7,
-                        minChildSize: 0.3,
-                        maxChildSize: 0.95,
-                        builder: (context, scrollController) => Column(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Transações da Fatura',
-                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                  Text(
-                                    '${DateFormat('dd/MM/yyyy').format(billStart)} a ${DateFormat('dd/MM/yyyy').format(billEnd)}',
-                                    style: Theme.of(context).textTheme.bodySmall,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Expanded(
-                              child: faturaTransacoes.isEmpty
-                                ? const Center(child: Text('Nenhuma transação encontrada.'))
-                                : ListView.builder(
-                                    controller: scrollController,
-                                    itemCount: faturaTransacoes.length,
-                                    itemBuilder: (context, index) {
-                                      final t = faturaTransacoes[index];
-                                      return ListTile(
-                                        title: Text(t.description),
-                                        subtitle: Text(DateFormat('dd/MM/yyyy').format(t.date)),
-                                        trailing: Text(
-                                          'R\$ ${t.amount.toStringAsFixed(2)}',
-                                          style: TextStyle(
-                                            color: Colors.red[700],
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                            ),
-                          ],
+              FutureBuilder<Map<String, dynamic>>(
+                future: provider.getCreditCardInvoiceForFinancialMonth(currentMonth.startDate, currentMonth.endDate),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                    );
+                  }
+                  final invoice = snapshot.data!;
+                  final amount = (invoice['transactions'] as List).fold<double>(0, (sum, t) => sum + t.amount);
+                  final status = invoice['status'] as String;
+                  final start = invoice['start'] as DateTime;
+                  final end = invoice['end'] as DateTime;
+                  final txs = invoice['transactions'] as List;
+                  return CreditCardBillCard(
+                    amount: amount,
+                    startDate: start,
+                    endDate: end,
+                    onCloseBill: status == 'FECHADA'
+                      ? () {}
+                      : () {
+                          provider.closeGlobalCreditCardInvoice().then((_) {
+                            setState(() {});
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Fatura fechada com sucesso!')),
+                            );
+                          });
+                        },
+                    onViewTransactions: () {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
                         ),
+                        builder: (context) {
+                          return DraggableScrollableSheet(
+                            expand: false,
+                            initialChildSize: 0.7,
+                            minChildSize: 0.3,
+                            maxChildSize: 0.95,
+                            builder: (context, scrollController) => Column(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'Transações da Fatura',
+                                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                                      ),
+                                      Text(
+                                        '${DateFormat('dd/MM/yyyy').format(start)} a ${DateFormat('dd/MM/yyyy').format(end)}',
+                                        style: Theme.of(context).textTheme.bodySmall,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: txs.isEmpty
+                                    ? const Center(child: Text('Nenhuma transação encontrada.'))
+                                    : ListView.builder(
+                                        controller: scrollController,
+                                        itemCount: txs.length,
+                                        itemBuilder: (context, index) {
+                                          final t = txs[index];
+                                          return ListTile(
+                                            title: Text(t.description),
+                                            subtitle: Text(DateFormat('dd/MM/yyyy').format(t.date)),
+                                            trailing: Text(
+                                              'R\$ ${t.amount.toStringAsFixed(2)}',
+                                              style: TextStyle(
+                                                color: Colors.red[700],
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       );
                     },
+                    isLoading: false,
                   );
                 },
               ),

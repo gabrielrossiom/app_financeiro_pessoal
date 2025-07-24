@@ -85,7 +85,7 @@ class CreditCardBillCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton(
-                  onPressed: amount == 0 || isLoading ? null : onCloseBill,
+                  onPressed: isLoading ? null : onCloseBill,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red[700],
                     foregroundColor: Colors.white,
