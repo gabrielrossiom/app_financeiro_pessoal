@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'categories_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -34,18 +33,6 @@ class SettingsScreen extends StatelessWidget {
                 color: Colors.grey,
                 fontSize: 16,
               ),
-            ),
-            SizedBox(height: 32),
-            ElevatedButton.icon(
-              icon: Icon(Icons.category),
-              label: Text('Gerenciar Categorias'),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const CategoriesScreen(),
-                  ),
-                );
-              },
             ),
           ],
         ),

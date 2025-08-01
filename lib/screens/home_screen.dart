@@ -6,6 +6,7 @@ import '../utils/utils.dart';
 import '../models/models.dart' as models;
 import '../widgets/widgets.dart';
 import 'package:uuid/uuid.dart';
+import '../screens/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -111,6 +112,16 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: const Icon(Icons.notifications_outlined),
             onPressed: () {},
           ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const SettingsScreen(),
+                ),
+              );
+            },
+          ),
         ],
       ),
       body: RefreshIndicator(
@@ -177,56 +188,6 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 24),
               // Gastos por categoria
               _buildExpensesByCategory(),
-              const SizedBox(height: 24),
-              // Transações recentes
-              RecentTransactionsCard(transactions: provider.transactions),
-              // Botão para limpar o banco de dados (apenas para testes)
-              const SizedBox(height: 32),
-              Center(
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.delete_forever),
-                  label: const Text('Limpar TODOS os dados (TESTE)'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: () async {
-                    final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Confirmar exclusão'),
-                        content: const Text('Tem certeza que deseja apagar TODOS os dados? Esta ação não pode ser desfeita.'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(false),
-                            child: const Text('Cancelar'),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(true),
-                            style: TextButton.styleFrom(foregroundColor: Colors.red),
-                            child: const Text('Apagar tudo'),
-                          ),
-                        ],
-                      ),
-                    );
-                    
-                    if (confirmed == true) {
-                      await provider.deleteAllData();
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Todos os dados foram apagados.')),
-                        );
-                        // Recarregar a tela para mostrar a modal de configuração inicial
-                        setState(() {
-                          _isLoading = true;
-                        });
-                        await _loadCurrentMonth();
-                        _checkInitialSetup();
-                      }
-                    }
-                  },
-                ),
-              ),
             ],
           ),
         ),

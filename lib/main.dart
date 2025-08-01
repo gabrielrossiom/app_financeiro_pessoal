@@ -143,9 +143,9 @@ final _router = GoRouter(
           builder: (context, state) => const ReportsScreen(),
         ),
         GoRoute(
-          path: '/settings',
-          name: 'settings',
-          builder: (context, state) => const SettingsScreen(),
+          path: '/categories',
+          name: 'categories',
+          builder: (context, state) => const CategoriesScreen(),
         ),
       ],
     ),
@@ -202,7 +202,7 @@ class _ScaffoldWithNavigationBarState extends State<ScaffoldWithNavigationBar> {
               context.go('/reports');
               break;
             case 3:
-              context.go('/settings');
+              context.go('/categories');
               break;
           }
         },
@@ -223,9 +223,9 @@ class _ScaffoldWithNavigationBarState extends State<ScaffoldWithNavigationBar> {
             label: 'Relatórios',
           ),
           NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Configurações',
+            icon: Icon(Icons.category_outlined),
+            selectedIcon: Icon(Icons.category),
+            label: 'Categorias',
           ),
         ],
       ),
