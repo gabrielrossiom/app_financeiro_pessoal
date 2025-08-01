@@ -7,7 +7,12 @@ import '../utils/utils.dart';
 import 'package:go_router/go_router.dart';
 
 class AddTransactionScreen extends StatefulWidget {
-  const AddTransactionScreen({super.key});
+  final models.TransactionType transactionType;
+  
+  const AddTransactionScreen({
+    super.key,
+    required this.transactionType,
+  });
 
   @override
   State<AddTransactionScreen> createState() => _AddTransactionScreenState();
@@ -30,9 +35,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedType = widget.transactionType;
     _loadCategories();
-    // Detectar se está editando
-    Future.microtask(() {
+    
+    // Detectar se está editando - usar WidgetsBinding para evitar setState durante build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       final args = GoRouter.of(context).routerDelegate.currentConfiguration.extra;
       if (args is models.Transaction) {
         setState(() {
@@ -180,68 +187,57 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // Tipo de transação
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Tipo de Transação',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
+            // Tipo de transação - Informação visual
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    _getTypeColor(_selectedType).withOpacity(0.1),
+                    _getTypeColor(_selectedType).withOpacity(0.05),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _getTypeColor(_selectedType).withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _getTypeIcon(_selectedType),
+                    color: _getTypeColor(_selectedType),
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        ChoiceChip(
-                          label: Text(models.TransactionType.expenseAccount.displayName),
-                          selected: _selectedType == models.TransactionType.expenseAccount,
-                          onSelected: (_) {
-                              setState(() {
-                              _selectedType = models.TransactionType.expenseAccount;
-                              _selectedRecurrence = null;
-                              });
-                            },
+                        Text(
+                          'Tipo de Transação',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _getTypeColor(_selectedType).withOpacity(0.7),
+                            fontWeight: FontWeight.w500,
                           ),
-                        ChoiceChip(
-                          label: Text(models.TransactionType.incomeAccount.displayName),
-                          selected: _selectedType == models.TransactionType.incomeAccount,
-                          onSelected: (_) {
-                            setState(() {
-                              _selectedType = models.TransactionType.incomeAccount;
-                              _selectedRecurrence = null;
-                            });
-                          },
                         ),
-                        ChoiceChip(
-                          label: Text(models.TransactionType.creditCardPayment.displayName),
-                          selected: _selectedType == models.TransactionType.creditCardPayment,
-                          onSelected: (_) {
-                              setState(() {
-                              _selectedType = models.TransactionType.creditCardPayment;
-                              _selectedRecurrence = null;
-                              });
-                            },
+                        Text(
+                          _selectedType.displayName,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: _getTypeColor(_selectedType),
                           ),
-                        ChoiceChip(
-                          label: Text(models.TransactionType.creditCardPurchase.displayName),
-                          selected: _selectedType == models.TransactionType.creditCardPurchase,
-                          onSelected: (_) {
-                            setState(() {
-                              _selectedType = models.TransactionType.creditCardPurchase;
-                              _selectedRecurrence = null;
-                            });
-                          },
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),
@@ -462,5 +458,31 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         ),
       ),
     );
+  }
+
+  Color _getTypeColor(models.TransactionType type) {
+    switch (type) {
+      case models.TransactionType.expenseAccount:
+        return Colors.red;
+      case models.TransactionType.incomeAccount:
+        return Colors.green;
+      case models.TransactionType.creditCardPayment:
+        return Colors.orange;
+      case models.TransactionType.creditCardPurchase:
+        return Colors.blue;
+    }
+  }
+
+  IconData _getTypeIcon(models.TransactionType type) {
+    switch (type) {
+      case models.TransactionType.expenseAccount:
+        return Icons.remove_circle_outline;
+      case models.TransactionType.incomeAccount:
+        return Icons.add_circle_outline;
+      case models.TransactionType.creditCardPayment:
+        return Icons.payment;
+      case models.TransactionType.creditCardPurchase:
+        return Icons.shopping_cart;
+    }
   }
 } 

@@ -10,6 +10,7 @@ import 'screens/categories_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/settings_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'models/models.dart' as models;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -133,9 +134,16 @@ final _router = GoRouter(
           builder: (context, state) => const TransactionsScreen(),
         ),
         GoRoute(
-          path: '/add-transaction',
+          path: '/add-transaction/:type',
           name: 'add-transaction',
-          builder: (context, state) => const AddTransactionScreen(),
+          builder: (context, state) {
+            final typeParam = state.pathParameters['type'] ?? 'expenseAccount';
+            final transactionType = models.TransactionType.values.firstWhere(
+              (e) => e.name == typeParam,
+              orElse: () => models.TransactionType.expenseAccount,
+            );
+            return AddTransactionScreen(transactionType: transactionType);
+          },
         ),
         GoRoute(
           path: '/reports',
@@ -229,10 +237,6 @@ class _ScaffoldWithNavigationBarState extends State<ScaffoldWithNavigationBar> {
           ),
         ],
       ),
-      floatingActionButton: _currentIndex == 1 && !_currentPath.contains('add-transaction') ? FloatingActionButton(
-        onPressed: () => context.go('/add-transaction'),
-        child: const Icon(Icons.add),
-      ) : null,
     );
   }
 }

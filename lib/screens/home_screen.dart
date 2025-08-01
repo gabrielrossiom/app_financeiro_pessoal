@@ -269,10 +269,7 @@ class _CreditCardBillCarouselState extends State<_CreditCardBillCarousel> {
               final invoice = widget.invoices[index];
               
               return CreditCardBillCard(
-                amount: invoice.amount,
-                startDate: invoice.startDate,
-                endDate: invoice.endDate,
-                status: _getStatusString(invoice.status),
+                invoice: invoice,
                 isLoading: false,
                 onViewTransactions: () {
                   _showTransactionsModal(invoice);
@@ -309,16 +306,7 @@ class _CreditCardBillCarouselState extends State<_CreditCardBillCarousel> {
     );
   }
 
-  String _getStatusString(models.InvoiceStatus status) {
-    switch (status) {
-      case models.InvoiceStatus.aberta:
-        return 'ABERTA';
-      case models.InvoiceStatus.fechada:
-        return 'FECHADA';
-      case models.InvoiceStatus.prevista:
-        return 'PREVISAO';
-    }
-  }
+
 
   void _showTransactionsModal(models.CreditCardInvoice invoice) {
     // Calcular o valor da fatura baseado nas transações

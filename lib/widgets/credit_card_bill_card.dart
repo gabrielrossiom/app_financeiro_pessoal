@@ -1,36 +1,44 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../models/models.dart';
+import '../utils/formatters.dart';
 
 class CreditCardBillCard extends StatelessWidget {
-  final double amount;
-  final DateTime startDate;
-  final DateTime endDate;
+  final CreditCardInvoice invoice;
+  final VoidCallback? onViewTransactions;
   final VoidCallback? onCloseBill;
-  final VoidCallback onViewTransactions;
   final bool isLoading;
-  final String status; // 'FECHADA', 'ABERTA', 'PREVISAO'
 
   const CreditCardBillCard({
     super.key,
-    required this.amount,
-    required this.startDate,
-    required this.endDate,
+    required this.invoice,
+    this.onViewTransactions,
     this.onCloseBill,
-    required this.onViewTransactions,
     this.isLoading = false,
-    required this.status,
   });
+
+  Color _getStatusColor(InvoiceStatus status) {
+    switch (status) {
+      case InvoiceStatus.aberta:
+        return Colors.green;
+      case InvoiceStatus.fechada:
+        return Colors.grey;
+      case InvoiceStatus.prevista:
+        return Colors.blue;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isClosed = status == 'FECHADA';
-    final isPrevisao = status == 'PREVISAO';
-    final isAberta = status == 'ABERTA';
+    final isClosed = invoice.status == InvoiceStatus.fechada;
+    final isPrevisao = invoice.status == InvoiceStatus.prevista;
+    final isAberta = invoice.status == InvoiceStatus.aberta;
     
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -38,81 +46,111 @@ class CreditCardBillCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Gastos com cartão de crédito',
+                  'Cartão de Crédito',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: isPrevisao
-                        ? Colors.blue[100]
-                        : isClosed
-                            ? Colors.grey[300]
-                            : Colors.green[100],
+                    color: _getStatusColor(invoice.status),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    status,
-                    style: TextStyle(
-                      color: isPrevisao
-                          ? Colors.blue[800]
-                          : isClosed
-                              ? Colors.grey[800]
-                              : Colors.green[800],
-                      fontWeight: FontWeight.bold,
+                    invoice.status.name.toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.white,
                       fontSize: 12,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
-              'R\$ ${amount.toStringAsFixed(2)}',
+              'R\$ ${invoice.amount.toStringAsFixed(2)}',
               style: theme.textTheme.headlineSmall?.copyWith(
-                color: amount == 0 ? Colors.grey : Colors.red[700],
+                color: invoice.amount == 0 ? Colors.grey : Colors.red[700],
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 4),
             Text(
-              'Período: ${startDate.day.toString().padLeft(2, '0')}/${startDate.month.toString().padLeft(2, '0')}/${startDate.year} a ${endDate.day.toString().padLeft(2, '0')}/${endDate.month.toString().padLeft(2, '0')}/${endDate.year}',
+              'Período: ${invoice.startDate.day.toString().padLeft(2, '0')}/${invoice.startDate.month.toString().padLeft(2, '0')}/${invoice.startDate.year} a ${invoice.endDate.day.toString().padLeft(2, '0')}/${invoice.endDate.month.toString().padLeft(2, '0')}/${invoice.endDate.year}',
               style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.7)),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
+            
+            // Botões de ação superiores
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                OutlinedButton(
-                  onPressed: onViewTransactions,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: theme.colorScheme.primary,
-                    side: BorderSide(color: theme.colorScheme.primary),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onViewTransactions,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: theme.colorScheme.primary,
+                      side: BorderSide(color: theme.colorScheme.primary),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text('Ver transações', style: TextStyle(fontSize: 12)),
                   ),
-                  child: const Text('Ver transações'),
                 ),
                 const SizedBox(width: 8),
-                if (isAberta && onCloseBill != null)
-                ElevatedButton(
-                  onPressed: isLoading ? null : onCloseBill,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red[700],
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: isLoading
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Fechar Fatura', style: TextStyle(fontWeight: FontWeight.bold)),
+                Expanded(
+                  child: isAberta && onCloseBill != null
+                      ? ElevatedButton(
+                          onPressed: isLoading ? null : onCloseBill,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red[700],
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: isLoading
+                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Text('Fechar Fatura', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        )
+                      : isClosed
+                          ? ElevatedButton(
+                              onPressed: () => context.go('/add-transaction/creditCardPayment'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Text('Pagar Fatura', style: TextStyle(fontSize: 12)),
+                            )
+                          : const SizedBox.shrink(),
                 ),
               ],
+            ),
+            const SizedBox(height: 6),
+            
+            // Botão de nova compra com destaque
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => context.go('/add-transaction/creditCardPurchase'),
+                icon: const Icon(Icons.shopping_cart, size: 18),
+                label: const Text('Nova Compra no Cartão', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
             ),
           ],
         ),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/utils.dart';
+import '../models/models.dart' as models;
+import 'package:go_router/go_router.dart';
 
 class BalanceCard extends StatelessWidget {
   final double totalIncome;
@@ -86,6 +88,38 @@ class BalanceCard extends StatelessWidget {
                     Formatters.formatCurrency(totalExpenses),
                     Colors.red,
                     Icons.arrow_downward,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            
+            // Botões de ação
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => context.go('/add-transaction/incomeAccount'),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Receita'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => context.go('/add-transaction/expenseAccount'),
+                    icon: const Icon(Icons.remove, size: 18),
+                    label: const Text('Despesa'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
                   ),
                 ),
               ],

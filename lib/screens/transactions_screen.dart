@@ -411,15 +411,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await Navigator.of(context).pushNamed('/add-transaction');
-          if (result == true) {
-            _loadData();
-          }
-        },
-        child: const Icon(Icons.add),
-      ),
+
     );
   }
 
