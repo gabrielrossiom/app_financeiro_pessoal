@@ -4,25 +4,29 @@ class CreditCardBillCard extends StatelessWidget {
   final double amount;
   final DateTime startDate;
   final DateTime endDate;
-  final VoidCallback onCloseBill;
+  final VoidCallback? onCloseBill;
   final VoidCallback onViewTransactions;
   final bool isLoading;
+  final String status; // 'FECHADA', 'ABERTA', 'PREVISAO'
 
   const CreditCardBillCard({
     super.key,
     required this.amount,
     required this.startDate,
     required this.endDate,
-    required this.onCloseBill,
+    this.onCloseBill,
     required this.onViewTransactions,
     this.isLoading = false,
+    required this.status,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final now = DateTime.now();
-    final isClosed = endDate.isBefore(DateTime(now.year, now.month, now.day + 1));
+    final isClosed = status == 'FECHADA';
+    final isPrevisao = status == 'PREVISAO';
+    final isAberta = status == 'ABERTA';
+    
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       child: Padding(
@@ -42,13 +46,21 @@ class CreditCardBillCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: isClosed ? Colors.grey[300] : Colors.green[100],
+                    color: isPrevisao
+                        ? Colors.blue[100]
+                        : isClosed
+                            ? Colors.grey[300]
+                            : Colors.green[100],
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    isClosed ? 'FECHADO' : 'ABERTO',
+                    status,
                     style: TextStyle(
-                      color: isClosed ? Colors.grey[800] : Colors.green[800],
+                      color: isPrevisao
+                          ? Colors.blue[800]
+                          : isClosed
+                              ? Colors.grey[800]
+                              : Colors.green[800],
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
@@ -84,6 +96,7 @@ class CreditCardBillCard extends StatelessWidget {
                   child: const Text('Ver transações'),
                 ),
                 const SizedBox(width: 8),
+                if (isAberta && onCloseBill != null)
                 ElevatedButton(
                   onPressed: isLoading ? null : onCloseBill,
                   style: ElevatedButton.styleFrom(

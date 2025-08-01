@@ -18,8 +18,11 @@ class FinanceProvider with ChangeNotifier {
   List<models.CreditCard> _creditCards = [];
   final List<models.FinancialMonth> _financialMonths = [];
   models.FinancialMonth? _currentFinancialMonth;
+  models.AppSettings? _appSettings;
+  List<models.CreditCardInvoice> _creditCardInvoices = [];
   bool _isLoading = false;
   String? _error;
+  bool _needsInitialSetup = false;
 
   // Getters
   List<models.Transaction> get transactions => _transactions;
@@ -27,17 +30,31 @@ class FinanceProvider with ChangeNotifier {
   List<models.CreditCard> get creditCards => _creditCards;
   List<models.FinancialMonth> get financialMonths => _financialMonths;
   models.FinancialMonth? get currentFinancialMonth => _currentFinancialMonth;
+  models.AppSettings? get appSettings => _appSettings;
+  List<models.CreditCardInvoice> get creditCardInvoices => _creditCardInvoices;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  bool get needsInitialSetup => _needsInitialSetup;
 
   // Inicialização
   Future<void> initialize() async {
     _setLoading(true);
     try {
+      await _loadAppSettings();
+      
+      // Verificar se precisa de configuração inicial
+      if (_appSettings == null) {
+        _needsInitialSetup = true;
+        notifyListeners();
+        return;
+      }
+      
       await _loadCategories();
       await _loadCreditCards();
       await _loadCurrentFinancialMonth();
       await _loadTransactions();
+      await _loadCreditCardInvoices();
+      await _ensureCreditCardInvoices();
       _error = null;
     } catch (e) {
       _error = 'Erro ao inicializar: $e';
@@ -74,16 +91,8 @@ class FinanceProvider with ChangeNotifier {
   // Carregar transações
   Future<void> _loadTransactions() async {
     try {
-      // Carregar todas as transações do mês atual
-      final now = DateTime.now();
-      final startOfMonth = DateTime(now.year, now.month, 1);
-      final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
-      
-      final transactions = await _databaseService.getTransactions(
-        startDate: startOfMonth,
-        endDate: endOfMonth,
-      );
-      
+      // Carregar todas as transações, sem limitar por data
+      final transactions = await _databaseService.getTransactions();
       _transactions = transactions;
       notifyListeners();
     } catch (e) {
@@ -131,11 +140,12 @@ class FinanceProvider with ChangeNotifier {
       // Inserir todas as transações
       for (final t in toInsert) {
         await _databaseService.insertTransaction(t);
-      }
+        }
       // Recarregar transações e atualizar totais do mês financeiro
       await _loadTransactions();
       await _updateFinancialMonthTotals();
       await _loadCurrentFinancialMonth();
+      await _updateInvoiceAmounts();
       _error = null;
     } catch (e) {
       _error = 'Erro ao adicionar transação: $e';
@@ -153,6 +163,7 @@ class FinanceProvider with ChangeNotifier {
       await _loadTransactions();
       await _updateFinancialMonthTotals();
       await _loadCurrentFinancialMonth();
+      await _updateInvoiceAmounts();
       _error = null;
     } catch (e) {
       _error = 'Erro ao atualizar transação: $e';
@@ -169,6 +180,7 @@ class FinanceProvider with ChangeNotifier {
       await _loadTransactions();
       await _updateFinancialMonthTotals();
       await _loadCurrentFinancialMonth();
+      await _updateInvoiceAmounts();
       _error = null;
     } catch (e) {
       _error = 'Erro ao excluir transação: $e';
@@ -376,105 +388,175 @@ class FinanceProvider with ChangeNotifier {
     super.dispose();
   }
 
-  // Fechar fatura do cartão de crédito
-  Future<void> closeCreditCardInvoice(String creditCardId) async {
-    await _databaseService.insertCreditCardClosing(creditCardId, DateTime.now());
+  // Métodos para Configurações do App
+  Future<void> _loadAppSettings() async {
+    _appSettings = await _databaseService.getAppSettings();
     notifyListeners();
   }
 
-  // Obter período da fatura em aberto
-  Future<Map<String, DateTime>> getCurrentCreditCardInvoicePeriod(String creditCardId) async {
-    return await _databaseService.getCurrentInvoicePeriod(creditCardId);
-  }
-
-  // Obter transações do cartão de crédito da fatura em aberto
-  Future<List<models.Transaction>> getCurrentCreditCardInvoiceTransactions(String creditCardId) async {
-    final period = await getCurrentCreditCardInvoicePeriod(creditCardId);
-    return await _databaseService.getTransactions(
-      startDate: period['start'],
-      endDate: period['end'],
-      type: models.TransactionType.creditCardPurchase,
-    );
-  }
-
-  // Fechar fatura global do cartão de crédito (sem cartão)
-  Future<void> closeGlobalCreditCardInvoice() async {
-    final db = await _databaseService.database;
-    await db.insert('credit_card_closings', {
-      'id': const Uuid().v4(),
-      'creditCardId': null,
-      'closingDate': DateTime.now().millisecondsSinceEpoch,
-    });
-    notifyListeners();
-  }
-
-  // Obter período da fatura global (último fechamento até agora)
-  Future<Map<String, DateTime>> getCurrentGlobalCreditCardInvoicePeriod() async {
-    final db = await _databaseService.database;
-    final result = await db.query(
-      'credit_card_closings',
-      orderBy: 'closingDate DESC',
-      limit: 1,
-    );
+  Future<void> saveInitialSettings(int closingDay) async {
     final now = DateTime.now();
-    if (result.isEmpty) {
-      // Se nunca fechou, considerar desde o início do app
-      return {'start': DateTime(now.year, now.month, 1), 'end': now};
-    }
-    final lastClosing = DateTime.fromMillisecondsSinceEpoch(result.first['closingDate'] as int);
-    return {'start': lastClosing.add(const Duration(days: 1)), 'end': now};
+    final settings = models.AppSettings(
+      id: const Uuid().v4(),
+      creditCardClosingDay: closingDay,
+      createdAt: now,
+      updatedAt: now,
+    );
+    
+    await _databaseService.insertAppSettings(settings);
+    _appSettings = settings;
+    _needsInitialSetup = false;
+    
+    // Criar faturas iniciais
+    await _createInitialInvoices(closingDay);
+    
+    // Carregar dados após configuração inicial
+    await _loadCategories();
+    await _loadCreditCards();
+    await _loadCurrentFinancialMonth();
+    await _loadTransactions();
+    
+    notifyListeners();
   }
 
-  // Obter período e status da fatura do cartão para um mês financeiro
-  Future<Map<String, dynamic>> getCreditCardInvoiceForFinancialMonth(DateTime financialMonthStart, DateTime financialMonthEnd) async {
-    final db = await _databaseService.database;
-    // Buscar todos os fechamentos ordenados
-    final closings = await db.query(
-      'credit_card_closings',
-      orderBy: 'closingDate ASC',
-    );
-    DateTime? lastClosingBeforeMonth;
-    DateTime? closingInMonth;
-    for (final row in closings) {
-      final closingDate = DateTime.fromMillisecondsSinceEpoch(row['closingDate'] as int);
-      if (closingDate.isBefore(financialMonthStart)) {
-        lastClosingBeforeMonth = closingDate;
-      } else if (closingDate.isAfter(financialMonthStart.subtract(const Duration(days: 1))) && closingDate.isBefore(financialMonthEnd.add(const Duration(days: 1)))) {
-        closingInMonth = closingDate;
-        break;
+  Future<void> _createInitialInvoices(int closingDay) async {
+    final now = DateTime.now();
+    final invoices = <models.CreditCardInvoice>[];
+    
+    // Criar a primeira fatura como ABERTA
+    final firstInvoice = models.CreditCardInvoice.fromClosingDay(now, closingDay, isFirstInvoice: true);
+    invoices.add(firstInvoice);
+    
+    // Criar 29 faturas PREVISTA adicionais
+    DateTime currentStart = firstInvoice.endDate.add(const Duration(days: 1));
+    for (int i = 0; i < 29; i++) {
+      final nextInvoice = models.CreditCardInvoice.fromStartDate(currentStart, closingDay);
+      invoices.add(nextInvoice);
+      currentStart = nextInvoice.endDate.add(const Duration(days: 1));
+    }
+    
+    // Salvar todas as faturas
+    for (final invoice in invoices) {
+      await _databaseService.insertCreditCardInvoice(invoice);
+    }
+    
+    _creditCardInvoices = invoices;
+    notifyListeners();
+  }
+
+  Future<void> _loadCreditCardInvoices() async {
+    _creditCardInvoices = await _databaseService.getCreditCardInvoices();
+    notifyListeners();
+  }
+
+  Future<void> _ensureCreditCardInvoices() async {
+    if (_appSettings == null) return;
+    
+    final count = await _databaseService.getCreditCardInvoicesCount();
+    if (count < 30) {
+      // Criar faturas adicionais se necessário
+      await _createAdditionalInvoices();
+    }
+  }
+
+  Future<void> _createAdditionalInvoices() async {
+    if (_creditCardInvoices.isEmpty) return;
+    
+    final now = DateTime.now();
+    final invoices = <models.CreditCardInvoice>[];
+    
+    // Pegar a última fatura como referência
+    final lastInvoice = _creditCardInvoices.last;
+    DateTime currentStart = lastInvoice.endDate.add(const Duration(days: 1));
+    
+    // Criar faturas até ter 30 no total
+    final neededCount = 30 - _creditCardInvoices.length;
+    for (int i = 0; i < neededCount; i++) {
+      final nextInvoice = models.CreditCardInvoice.fromStartDate(currentStart, _appSettings!.creditCardClosingDay);
+      invoices.add(nextInvoice);
+      currentStart = nextInvoice.endDate.add(const Duration(days: 1));
+    }
+    
+    // Salvar as novas faturas
+    for (final invoice in invoices) {
+      await _databaseService.insertCreditCardInvoice(invoice);
+    }
+    
+    _creditCardInvoices.addAll(invoices);
+    notifyListeners();
+  }
+
+  Future<void> closeCreditCardInvoice(String invoiceId) async {
+    final invoiceIndex = _creditCardInvoices.indexWhere((i) => i.id == invoiceId);
+    if (invoiceIndex == -1) return;
+    
+    final invoice = _creditCardInvoices[invoiceIndex];
+    if (invoice.status != models.InvoiceStatus.aberta) return;
+    
+    final now = DateTime.now();
+    final closingDate = now.subtract(const Duration(days: 1));
+    
+    // Atualizar a fatura atual para FECHADA
+    final updatedInvoice = invoice.close(closingDate);
+    
+    await _databaseService.updateCreditCardInvoice(updatedInvoice);
+    _creditCardInvoices[invoiceIndex] = updatedInvoice;
+    
+    // Atualizar a próxima fatura para ABERTA
+    if (invoiceIndex + 1 < _creditCardInvoices.length) {
+      final nextInvoice = _creditCardInvoices[invoiceIndex + 1];
+      final updatedNextInvoice = nextInvoice.open(closingDate.add(const Duration(days: 1)));
+      
+      await _databaseService.updateCreditCardInvoice(updatedNextInvoice);
+      _creditCardInvoices[invoiceIndex + 1] = updatedNextInvoice;
+    }
+    
+    notifyListeners();
+  }
+
+  // Método para obter faturas que se sobrepõem ao mês financeiro atual
+  List<models.CreditCardInvoice> getInvoicesForCurrentMonth() {
+    if (_currentFinancialMonth == null) return [];
+    
+    return _creditCardInvoices.where((invoice) {
+      return invoice.overlapsWithPeriod(_currentFinancialMonth!.startDate, _currentFinancialMonth!.endDate);
+    }).toList();
+  }
+
+  // Método para atualizar os valores das faturas baseado nas transações
+  Future<void> _updateInvoiceAmounts() async {
+    for (int i = 0; i < _creditCardInvoices.length; i++) {
+      final invoice = _creditCardInvoices[i];
+      
+      // Calcular o valor da fatura baseado nas transações
+      final transactions = _transactions.where((t) =>
+        t.type == models.TransactionType.creditCardPurchase &&
+        invoice.containsDate(t.date)
+      ).toList();
+      
+      final amount = transactions.fold(0.0, (sum, t) => sum + t.amount);
+      
+      if (amount != invoice.amount) {
+        final updatedInvoice = invoice.updateAmount(amount);
+        await _databaseService.updateCreditCardInvoice(updatedInvoice);
+        _creditCardInvoices[i] = updatedInvoice;
       }
     }
-    // Se houve fechamento dentro do mês financeiro, a fatura está fechada
-    if (closingInMonth != null) {
-      // Período: do último fechamento antes do mês até o fechamento dentro do mês
-      final start = (lastClosingBeforeMonth != null) ? lastClosingBeforeMonth.add(const Duration(days: 1)) : financialMonthStart;
-      final end = closingInMonth;
-      final txs = _transactions.where((t) =>
-        t.type == models.TransactionType.creditCardPurchase &&
-        t.date.isAfter(start.subtract(const Duration(days: 1))) &&
-        t.date.isBefore(end.add(const Duration(days: 1)))
-      ).toList();
-      return {
-        'status': 'FECHADA',
-        'start': start,
-        'end': end,
-        'transactions': txs,
-      };
-    } else {
-      // Fatura em aberto: do último fechamento até o fim do mês financeiro
-      final start = (lastClosingBeforeMonth != null) ? lastClosingBeforeMonth.add(const Duration(days: 1)) : financialMonthStart;
-      final end = financialMonthEnd;
-      final txs = _transactions.where((t) =>
-        t.type == models.TransactionType.creditCardPurchase &&
-        t.date.isAfter(start.subtract(const Duration(days: 1))) &&
-        t.date.isBefore(end.add(const Duration(days: 1)))
-      ).toList();
-      return {
-        'status': 'ABERTA',
-        'start': start,
-        'end': end,
-        'transactions': txs,
-      };
-    }
+    
+    notifyListeners();
+  }
+
+  // Método público para verificar se há configurações
+  Future<bool> hasAppSettings() async {
+    return await _databaseService.hasAppSettings();
+  }
+
+  // Método público para limpar todos os dados do banco de dados (apenas para testes)
+  Future<void> deleteAllData() async {
+    await _databaseService.deleteAllData();
+    _needsInitialSetup = true;
+    _appSettings = null;
+    _creditCardInvoices = [];
+    notifyListeners();
   }
 } 

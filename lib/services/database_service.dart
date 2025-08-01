@@ -43,6 +43,16 @@ class DatabaseService {
   }
 
   Future<void> _onCreate(Database db, int version) async {
+    // Tabela de configurações do app
+    await db.execute('''
+      CREATE TABLE app_settings (
+        id TEXT PRIMARY KEY,
+        creditCardClosingDay INTEGER,
+        createdAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL
+      )
+    ''');
+
     // Tabela de categorias
     await db.execute('''
       CREATE TABLE categories (
@@ -83,6 +93,19 @@ class DatabaseService {
         budget REAL NOT NULL DEFAULT 0,
         remainingBudget REAL NOT NULL DEFAULT 0,
         isClosed INTEGER NOT NULL DEFAULT 0,
+        createdAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL
+      )
+    ''');
+
+    // Tabela de faturas de cartão de crédito
+    await db.execute('''
+      CREATE TABLE credit_card_invoices (
+        id TEXT PRIMARY KEY,
+        startDate INTEGER NOT NULL,
+        endDate INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        amount REAL NOT NULL DEFAULT 0,
         createdAt INTEGER NOT NULL,
         updatedAt INTEGER NOT NULL
       )
@@ -428,6 +451,89 @@ class DatabaseService {
     ]);
 
     return maps.first['total'] ?? 0.0;
+  }
+
+  // Métodos para Configurações do App
+  Future<models.AppSettings?> getAppSettings() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('app_settings', limit: 1);
+    if (maps.isEmpty) return null;
+    return models.AppSettings.fromMap(maps.first);
+  }
+
+  Future<models.AppSettings> insertAppSettings(models.AppSettings settings) async {
+    final db = await database;
+    await db.insert('app_settings', settings.toMap());
+    return settings;
+  }
+
+  Future<int> updateAppSettings(models.AppSettings settings) async {
+    final db = await database;
+    return await db.update(
+      'app_settings',
+      settings.toMap(),
+      where: 'id = ?',
+      whereArgs: [settings.id],
+    );
+  }
+
+  Future<bool> hasAppSettings() async {
+    final db = await database;
+    final result = await db.query('app_settings', limit: 1);
+    return result.isNotEmpty;
+  }
+
+  // Métodos para Faturas de Cartão de Crédito
+  Future<List<models.CreditCardInvoice>> getCreditCardInvoices() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'credit_card_invoices',
+      orderBy: 'startDate ASC',
+    );
+    return List.generate(maps.length, (i) => models.CreditCardInvoice.fromMap(maps[i]));
+  }
+
+  Future<models.CreditCardInvoice> insertCreditCardInvoice(models.CreditCardInvoice invoice) async {
+    final db = await database;
+    await db.insert('credit_card_invoices', invoice.toMap());
+    return invoice;
+  }
+
+  Future<int> updateCreditCardInvoice(models.CreditCardInvoice invoice) async {
+    final db = await database;
+    return await db.update(
+      'credit_card_invoices',
+      invoice.toMap(),
+      where: 'id = ?',
+      whereArgs: [invoice.id],
+    );
+  }
+
+  Future<int> deleteCreditCardInvoice(String id) async {
+    final db = await database;
+    return await db.delete(
+      'credit_card_invoices',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<int> getCreditCardInvoicesCount() async {
+    final db = await database;
+    final result = await db.rawQuery('SELECT COUNT(*) as count FROM credit_card_invoices');
+    return result.first['count'] as int;
+  }
+
+  // Método para apagar todos os dados do banco de dados (apenas para testes)
+  Future<void> deleteAllData() async {
+    final db = await database;
+    await db.delete('transactions');
+    await db.delete('categories');
+    await db.delete('credit_cards');
+    await db.delete('financial_months');
+    await db.delete('credit_card_closings');
+    await db.delete('app_settings');
+    await db.delete('credit_card_invoices');
   }
 
   // Fechar conexão com o banco

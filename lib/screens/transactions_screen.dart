@@ -321,10 +321,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   if (category != null)
-                                    Text(
+                                  Text(
                                       '${category.name} • ${transaction.type.displayName}',
-                                      style: TextStyle(color: Colors.grey[600]),
-                                    ),
+                                    style: TextStyle(color: Colors.grey[600]),
+                                  ),
                                   Text(
                                     DateFormat('dd/MM/yyyy').format(transaction.date),
                                     style: TextStyle(color: Colors.grey[600]),
@@ -399,7 +399,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                         ),
                                       ),
                                     ],
-                                  ),
+                                    ),
                                 ],
                               ),
                               onTap: () => _showTransactionDetails(transaction),

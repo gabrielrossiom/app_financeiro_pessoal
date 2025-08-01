@@ -69,8 +69,8 @@ class Transaction {
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : id = id ?? const Uuid().v4(),
-        createdAt = createdAt ?? DateTime.now(),
-        updatedAt = updatedAt ?? DateTime.now();
+    createdAt = createdAt ?? DateTime.now(),
+    updatedAt = updatedAt ?? DateTime.now();
 
   // Construtores de fábrica para cada tipo
   factory Transaction.expenseAccount({
@@ -116,7 +116,7 @@ class Transaction {
       type: TransactionType.creditCardPayment,
       date: date,
     );
-  }
+    }
 
   factory Transaction.creditCardPurchase({
     required String description,

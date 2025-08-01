@@ -128,10 +128,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         );
       } else if (_selectedType == models.TransactionType.creditCardPurchase) {
         transaction = models.Transaction.creditCardPurchase(
-          description: _descriptionController.text.trim(),
-          amount: amount,
-          category: _selectedCategory!,
-          date: _selectedDate,
+        description: _descriptionController.text.trim(),
+        amount: amount,
+        category: _selectedCategory!,
+        date: _selectedDate,
           recurrenceType: _selectedRecurrence!,
           installments: _selectedRecurrence == models.RecurrenceType.parcelada ? _installments : null,
         );
@@ -146,7 +146,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Transação atualizada com sucesso!')),
-          );
+      );
           context.go('/transactions');
         }
         return;
@@ -202,12 +202,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           label: Text(models.TransactionType.expenseAccount.displayName),
                           selected: _selectedType == models.TransactionType.expenseAccount,
                           onSelected: (_) {
-                            setState(() {
+                              setState(() {
                               _selectedType = models.TransactionType.expenseAccount;
                               _selectedRecurrence = null;
-                            });
-                          },
-                        ),
+                              });
+                            },
+                          ),
                         ChoiceChip(
                           label: Text(models.TransactionType.incomeAccount.displayName),
                           selected: _selectedType == models.TransactionType.incomeAccount,
@@ -222,12 +222,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           label: Text(models.TransactionType.creditCardPayment.displayName),
                           selected: _selectedType == models.TransactionType.creditCardPayment,
                           onSelected: (_) {
-                            setState(() {
+                              setState(() {
                               _selectedType = models.TransactionType.creditCardPayment;
                               _selectedRecurrence = null;
-                            });
-                          },
-                        ),
+                              });
+                            },
+                          ),
                         ChoiceChip(
                           label: Text(models.TransactionType.creditCardPurchase.displayName),
                           selected: _selectedType == models.TransactionType.creditCardPurchase,
@@ -288,47 +288,47 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
             // Categoria (apenas para despesa em conta e compra em cartão)
             if (_selectedType == models.TransactionType.expenseAccount || _selectedType == models.TransactionType.creditCardPurchase) ...[
-              const Text('Categoria', style: TextStyle(fontWeight: FontWeight.w500)),
-              const SizedBox(height: 8),
-              Container(
-                height: 48,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: DropdownButtonFormField<String>(
-                  value: _selectedCategory,
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  items: _categories.map((category) {
-                    return DropdownMenuItem(
-                      value: category.id,
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 16,
-                            height: 16,
-                            decoration: BoxDecoration(
-                              color: Color(int.parse(category.color.replaceAll('#', '0xFF'))),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(category.name),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedCategory = value;
-                    });
-                  },
-                ),
+            const Text('Categoria', style: TextStyle(fontWeight: FontWeight.w500)),
+            const SizedBox(height: 8),
+            Container(
+              height: 48,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(8),
               ),
-              const SizedBox(height: 16),
+              child: DropdownButtonFormField<String>(
+                value: _selectedCategory,
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                items: _categories.map((category) {
+                  return DropdownMenuItem(
+                    value: category.id,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 16,
+                          height: 16,
+                          decoration: BoxDecoration(
+                            color: Color(int.parse(category.color.replaceAll('#', '0xFF'))),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(category.name),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedCategory = value;
+                  });
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
             ],
 
             // Data
@@ -366,10 +366,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               if ((_selectedType == models.TransactionType.expenseAccount ||
                   _selectedType == models.TransactionType.incomeAccount) &&
                   _selectedType != models.TransactionType.creditCardPurchase) ...[
-                const Text('Recorrência', style: TextStyle(fontWeight: FontWeight.w500)),
-                const SizedBox(height: 8),
+            const Text('Recorrência', style: TextStyle(fontWeight: FontWeight.w500)),
+            const SizedBox(height: 8),
                 DropdownButtonFormField<models.RecurrenceType>(
-                  value: _selectedRecurrence,
+                value: _selectedRecurrence,
                   items: models.RecurrenceType.values
                       .where((r) => r != models.RecurrenceType.parcelada)
                       .map((recurrence) => DropdownMenuItem(
@@ -382,7 +382,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       _selectedRecurrence = value;
                     });
                   },
-                  decoration: const InputDecoration(
+                decoration: const InputDecoration(
                     labelText: 'Recorrência',
                     border: OutlineInputBorder(),
                   ),
@@ -402,15 +402,15 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   value: _selectedRecurrence,
                   items: models.RecurrenceType.values
                       .map((recurrence) => DropdownMenuItem(
-                            value: recurrence,
-                            child: Text(recurrence.displayName),
+                    value: recurrence,
+                    child: Text(recurrence.displayName),
                           ))
                       .toList(),
-                  onChanged: (value) {
-                    setState(() {
+                onChanged: (value) {
+                  setState(() {
                       _selectedRecurrence = value;
-                    });
-                  },
+                  });
+                },
                   decoration: const InputDecoration(
                     labelText: 'Recorrência',
                     border: OutlineInputBorder(),
@@ -421,8 +421,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     }
                     return null;
                   },
-                ),
-                const SizedBox(height: 16),
+            ),
+            const SizedBox(height: 16),
               ],
             ],
 
